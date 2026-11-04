@@ -9,7 +9,7 @@ local LocalPlayer = Players.LocalPlayer
 local Library = {
 	Flags = {},
 	Items = {},
-	Version = "1.0.0",
+	Version = "1.1.0",
 	_nid = 0,
 }
 
@@ -17,19 +17,25 @@ local Library = {
 -- THEME
 ----------------------------------------------------------------------
 local Theme = {
-	Background = Color3.fromRGB(13, 13, 20),
-	Surface = Color3.fromRGB(19, 19, 29),
-	Element = Color3.fromRGB(26, 26, 40),
-	ElementHover = Color3.fromRGB(34, 34, 53),
-	Track = Color3.fromRGB(44, 44, 66),
-	Stroke = Color3.fromRGB(46, 46, 70),
-	Accent = Color3.fromRGB(139, 92, 246),
-	Accent2 = Color3.fromRGB(56, 189, 248),
-	Text = Color3.fromRGB(236, 236, 248),
-	SubText = Color3.fromRGB(150, 150, 178),
-	Success = Color3.fromRGB(52, 211, 153),
-	Warning = Color3.fromRGB(251, 191, 36),
-	Danger = Color3.fromRGB(248, 83, 105),
+	-- Glass (ala iOS): lapisan putih tembus pandang di atas dasar kaca gelap
+	Glass = Color3.fromRGB(26, 28, 44),
+	GlassAlpha = 0.3,
+	Background = Color3.fromRGB(26, 28, 44),
+	Surface = Color3.fromRGB(255, 255, 255),
+	Element = Color3.fromRGB(255, 255, 255),
+	ElementHover = Color3.fromRGB(255, 255, 255),
+	ElementAlpha = 0.9,
+	ElementHoverAlpha = 0.8,
+	Inset = Color3.fromRGB(0, 0, 0),
+	Track = Color3.fromRGB(100, 102, 124),
+	Stroke = Color3.fromRGB(255, 255, 255),
+	Accent = Color3.fromRGB(10, 132, 255),   -- iOS system blue
+	Accent2 = Color3.fromRGB(100, 210, 255), -- iOS cyan
+	Text = Color3.fromRGB(255, 255, 255),
+	SubText = Color3.fromRGB(176, 178, 198),
+	Success = Color3.fromRGB(48, 209, 88),
+	Warning = Color3.fromRGB(255, 214, 10),
+	Danger = Color3.fromRGB(255, 69, 58),
 }
 Library.Theme = Theme
 
@@ -63,7 +69,7 @@ local function create(class, props, children)
 		inst.AutoButtonColor = false
 	end
 	if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
-		inst.Font = Enum.Font.GothamMedium
+		inst.Font = Enum.Font.BuilderSansMedium
 		inst.TextColor3 = Theme.Text
 		inst.TextSize = 14
 	end
@@ -306,12 +312,13 @@ function Library:Notify(cfg)
 	local Card = create("Frame", {
 		Position = UDim2.new(1.25, 0, 0, 0),
 		Size = UDim2.new(1, 0, 0, 68),
-		BackgroundColor3 = Theme.Surface,
+		BackgroundColor3 = Theme.Glass,
+		BackgroundTransparency = 0.08,
 		ClipsDescendants = true,
 		Parent = Wrap,
 	})
-	corner(Card, 10)
-	stroke(Card, Theme.Stroke, 1, 0.3)
+	corner(Card, 14)
+	stroke(Card, Theme.Stroke, 1, 0.82)
 
 	local Edge = create("Frame", {
 		Size = UDim2.new(0, 3, 1, 0),
@@ -322,7 +329,7 @@ function Library:Notify(cfg)
 		Position = UDim2.fromOffset(16, 9),
 		Size = UDim2.new(1, -28, 0, 16),
 		Text = cfg.Title or "Notification",
-		Font = Enum.Font.GothamBold,
+		Font = Enum.Font.BuilderSansBold,
 		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
@@ -332,7 +339,7 @@ function Library:Notify(cfg)
 		Position = UDim2.fromOffset(16, 27),
 		Size = UDim2.new(1, -28, 0, 32),
 		Text = cfg.Content or "",
-		Font = Enum.Font.Gotham,
+		Font = Enum.Font.BuilderSans,
 		TextSize = 13,
 		TextColor3 = Theme.SubText,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -382,12 +389,13 @@ local function baseElement(self, cfg, rightWidth)
 		Name = cfg.Name or "Element",
 		Size = UDim2.new(1, 0, 0, headerH),
 		BackgroundColor3 = Theme.Element,
+		BackgroundTransparency = Theme.ElementAlpha,
 		ClipsDescendants = true,
 		LayoutOrder = self:_next(),
 		Parent = self._parent,
 	})
-	corner(F, 8)
-	local st = stroke(F, Theme.Stroke, 1, 0.35)
+	corner(F, 12)
+	local st = stroke(F, Theme.Stroke, 1, 0.88)
 
 	local Title = create("TextLabel", {
 		Name = "Title",
@@ -404,7 +412,7 @@ local function baseElement(self, cfg, rightWidth)
 			Position = UDim2.fromOffset(14, 26),
 			Size = UDim2.new(1, -(rw + 28), 0, 16),
 			Text = cfg.Description,
-			Font = Enum.Font.Gotham,
+			Font = Enum.Font.BuilderSans,
 			TextSize = 12,
 			TextColor3 = Theme.SubText,
 			TextXAlignment = Enum.TextXAlignment.Left,
@@ -414,12 +422,12 @@ local function baseElement(self, cfg, rightWidth)
 	end
 
 	F.MouseEnter:Connect(function()
-		tween(F, { BackgroundColor3 = Theme.ElementHover }, EASE.Fast)
-		tween(st, { Transparency = 0.1 }, EASE.Fast)
+		tween(F, { BackgroundTransparency = Theme.ElementHoverAlpha }, EASE.Fast)
+		tween(st, { Transparency = 0.7 }, EASE.Fast)
 	end)
 	F.MouseLeave:Connect(function()
-		tween(F, { BackgroundColor3 = Theme.Element }, EASE.Fast)
-		tween(st, { Transparency = 0.35 }, EASE.Fast)
+		tween(F, { BackgroundTransparency = Theme.ElementAlpha }, EASE.Fast)
+		tween(st, { Transparency = 0.88 }, EASE.Fast)
 	end)
 
 	return F, headerH, st, Title
@@ -466,11 +474,12 @@ function Elements:CreateSection(name)
 		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = Theme.Surface,
+		BackgroundTransparency = 0.94,
 		LayoutOrder = self:_next(),
 		Parent = self._parent,
 	})
-	corner(Card, 10)
-	stroke(Card, Theme.Stroke, 1, 0.5)
+	corner(Card, 14)
+	stroke(Card, Theme.Stroke, 1, 0.9)
 	padding(Card, 10, 10, 10, 10)
 	listLayout(Card, 8)
 
@@ -492,7 +501,7 @@ function Elements:CreateSection(name)
 		Position = UDim2.fromOffset(14, 0),
 		Size = UDim2.new(1, -14, 1, 0),
 		Text = string.upper(tostring(name or "Section")),
-		Font = Enum.Font.GothamBold,
+		Font = Enum.Font.BuilderSansBold,
 		TextSize = 12,
 		TextColor3 = Theme.SubText,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -508,7 +517,7 @@ function Elements:CreateLabel(text)
 		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Text = text or "",
-		Font = Enum.Font.Gotham,
+		Font = Enum.Font.BuilderSans,
 		TextSize = 13,
 		TextColor3 = Theme.SubText,
 		TextWrapped = true,
@@ -534,7 +543,7 @@ function Elements:CreateButton(cfg)
 		Position = UDim2.new(1, -12, 0, headerH / 2),
 		Size = UDim2.fromOffset(20, 24),
 		Text = "›",
-		Font = Enum.Font.GothamBold,
+		Font = Enum.Font.BuilderSansBold,
 		TextSize = 22,
 		TextColor3 = Theme.Accent,
 		Parent = F,
@@ -583,7 +592,7 @@ function Elements:CreateToggle(cfg)
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 3, 0.5, 0),
 		Size = UDim2.fromOffset(16, 16),
-		BackgroundColor3 = Color3.fromRGB(190, 190, 210),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		Parent = Track,
 	})
 	corner(Knob, 999)
@@ -594,7 +603,7 @@ function Elements:CreateToggle(cfg)
 			animate and EASE.Smooth or EASE.Instant)
 		tween(Knob, {
 			Position = value and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
-			BackgroundColor3 = value and Color3.new(1, 1, 1) or Color3.fromRGB(190, 190, 210),
+			BackgroundColor3 = value and Color3.new(1, 1, 1) or Color3.new(1, 1, 1),
 		}, info)
 		tween(Glow, { Transparency = value and 0.55 or 1 }, EASE.Smooth)
 	end
@@ -650,7 +659,7 @@ function Elements:CreateSlider(cfg)
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -14, 0, 8),
 		Size = UDim2.fromOffset(90, 18),
-		Font = Enum.Font.GothamBold,
+		Font = Enum.Font.BuilderSansBold,
 		TextSize = 13,
 		TextColor3 = Theme.Accent,
 		TextXAlignment = Enum.TextXAlignment.Right,
@@ -742,7 +751,7 @@ function Elements:CreateDropdown(cfg)
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -34, 0, headerH / 2),
 		Size = UDim2.fromOffset(120, 20),
-		Font = Enum.Font.Gotham,
+		Font = Enum.Font.BuilderSans,
 		TextSize = 13,
 		TextColor3 = Theme.SubText,
 		TextXAlignment = Enum.TextXAlignment.Right,
@@ -754,7 +763,7 @@ function Elements:CreateDropdown(cfg)
 		Position = UDim2.new(1, -18, 0, headerH / 2),
 		Size = UDim2.fromOffset(20, 20),
 		Text = "›",
-		Font = Enum.Font.GothamBold,
+		Font = Enum.Font.BuilderSansBold,
 		TextSize = 22,
 		TextColor3 = Theme.SubText,
 		Rotation = 90,
@@ -764,7 +773,8 @@ function Elements:CreateDropdown(cfg)
 	local Holder = create("ScrollingFrame", {
 		Position = UDim2.new(0, 10, 0, headerH + 4),
 		Size = UDim2.new(1, -20, 0, 0),
-		BackgroundColor3 = Theme.Surface,
+		BackgroundColor3 = Theme.Inset,
+		BackgroundTransparency = 0.62,
 		ScrollBarThickness = 2,
 		ScrollBarImageColor3 = Theme.Accent,
 		CanvasSize = UDim2.new(),
@@ -928,20 +938,21 @@ function Elements:CreateTextBox(cfg)
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0, headerH / 2),
 		Size = UDim2.fromOffset(150, 26),
-		BackgroundColor3 = Theme.Surface,
+		BackgroundColor3 = Theme.Inset,
+		BackgroundTransparency = 0.6,
 		Text = value,
 		PlaceholderText = cfg.Placeholder or "Type here...",
 		PlaceholderColor3 = Theme.SubText,
 		ClearTextOnFocus = false,
 		ClipsDescendants = true,
-		Font = Enum.Font.Gotham,
+		Font = Enum.Font.BuilderSans,
 		TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = F,
 	})
 	corner(Box, 6)
 	padding(Box, 8, 0, 8, 0)
-	local bs = stroke(Box, Theme.Stroke, 1, 0.2)
+	local bs = stroke(Box, Theme.Stroke, 1, 0.84)
 
 	Box.Focused:Connect(function()
 		tween(bs, { Color = Theme.Accent }, EASE.Fast)
@@ -987,16 +998,16 @@ function Elements:CreateKeybind(cfg)
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0, headerH / 2),
 		Size = UDim2.fromOffset(84, 26),
-		BackgroundColor3 = Theme.Surface,
-		BackgroundTransparency = 0,
-		Font = Enum.Font.GothamBold,
+		BackgroundColor3 = Theme.Inset,
+		BackgroundTransparency = 0.6,
+		Font = Enum.Font.BuilderSansBold,
 		TextSize = 12,
 		TextColor3 = Theme.Accent,
 		ZIndex = 3,
 		Parent = F,
 	})
 	corner(Btn, 6)
-	local bs = stroke(Btn, Theme.Stroke, 1, 0.2)
+	local bs = stroke(Btn, Theme.Stroke, 1, 0.84)
 
 	local function label()
 		Btn.Text = key == Enum.KeyCode.Unknown and "None" or key.Name
@@ -1061,7 +1072,7 @@ function Elements:CreateColorPicker(cfg)
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -58, 0, headerH / 2),
 		Size = UDim2.fromOffset(70, 20),
-		Font = Enum.Font.Gotham,
+		Font = Enum.Font.BuilderSans,
 		TextSize = 12,
 		TextColor3 = Theme.SubText,
 		TextXAlignment = Enum.TextXAlignment.Right,
@@ -1273,25 +1284,65 @@ function Library:CreateWindow(cfg)
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
 		Size = UDim2.fromOffset(W * 0.9, H * 0.9),
-		BackgroundColor3 = Theme.Background,
+		BackgroundTransparency = 1,
 		GroupTransparency = 1,
 		Parent = Gui,
 	})
-	corner(Main, 12)
-	stroke(Main, Theme.Stroke, 1, 0.1)
-	create("UIGradient", {
-		Rotation = 135,
-		Color = ColorSequence.new(Color3.fromRGB(20, 17, 32), Color3.fromRGB(11, 11, 17)),
+	corner(Main, 18)
+	Window.Main = Main
+
+	-- Lapisan kaca: dasar gelap tembus pandang + pantulan cahaya (sheen)
+	local GlassBase = create("Frame", {
+		Name = "GlassBase",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = Theme.GlassAlpha,
 		Parent = Main,
 	})
-	Window.Main = Main
+	create("UIGradient", {
+		Rotation = 135,
+		Color = ColorSequence.new(Color3.fromRGB(64, 70, 112), Color3.fromRGB(22, 24, 38)),
+		Parent = GlassBase,
+	})
+	local Sheen = create("Frame", {
+		Name = "Sheen",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Parent = Main,
+	})
+	create("UIGradient", {
+		Rotation = 115,
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.82),
+			NumberSequenceKeypoint.new(0.4, 0.95),
+			NumberSequenceKeypoint.new(1, 0.99),
+		}),
+		Parent = Sheen,
+	})
+
+	-- Blur dunia 3D di belakang window (efek frosted glass)
+	local Lighting = game:GetService("Lighting")
+	local blurSize = cfg.Blur == false and 0 or (cfg.BlurSize or 16)
+	local Blur = Instance.new("BlurEffect")
+	Blur.Name = "NebulaBlur"
+	Blur.Size = 0
+	pcall(function()
+		local old = Lighting:FindFirstChild("NebulaBlur")
+		if old then
+			old:Destroy()
+		end
+		Blur.Parent = Lighting
+	end)
+	function Window:_setBlur(on)
+		tween(Blur, { Size = on and blurSize or 0 }, EASE.Slow)
+	end
 
 	-- Top bar
 	local TopBar = create("Frame", {
 		Name = "TopBar",
 		Size = UDim2.new(1, 0, 0, TOP_H),
 		BackgroundColor3 = Theme.Surface,
-		BackgroundTransparency = 0.35,
+		BackgroundTransparency = 0.95,
 		Parent = Main,
 	})
 	local Logo = create("Frame", {
@@ -1319,7 +1370,7 @@ function Library:CreateWindow(cfg)
 		create("TextLabel", {
 			Size = UDim2.fromScale(1, 1),
 			Text = string.upper(string.sub(cfg.Title or "N", 1, 1)),
-			Font = Enum.Font.GothamBlack,
+			Font = Enum.Font.BuilderSansExtraBold,
 			TextSize = 16,
 			TextColor3 = Color3.new(1, 1, 1),
 			Parent = Logo,
@@ -1329,7 +1380,7 @@ function Library:CreateWindow(cfg)
 		Position = UDim2.fromOffset(52, 7),
 		Size = UDim2.new(1, -150, 0, 18),
 		Text = cfg.Title or "Nebula UI",
-		Font = Enum.Font.GothamBold,
+		Font = Enum.Font.BuilderSansBold,
 		TextSize = 15,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = TopBar,
@@ -1338,7 +1389,7 @@ function Library:CreateWindow(cfg)
 		Position = UDim2.fromOffset(52, 25),
 		Size = UDim2.new(1, -150, 0, 14),
 		Text = cfg.SubTitle or "v" .. Library.Version,
-		Font = Enum.Font.Gotham,
+		Font = Enum.Font.BuilderSans,
 		TextSize = 11,
 		TextColor3 = Theme.SubText,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -1353,7 +1404,7 @@ function Library:CreateWindow(cfg)
 			BackgroundColor3 = hoverColor,
 			BackgroundTransparency = 1,
 			Text = text,
-			Font = Enum.Font.GothamBold,
+			Font = Enum.Font.BuilderSansBold,
 			TextSize = 18,
 			TextColor3 = Theme.SubText,
 			Parent = TopBar,
@@ -1375,6 +1426,7 @@ function Library:CreateWindow(cfg)
 		Position = UDim2.fromOffset(0, TOP_H),
 		Size = UDim2.new(1, 0, 0, 1),
 		BackgroundColor3 = Theme.Stroke,
+		BackgroundTransparency = 0.88,
 		Parent = Main,
 	})
 	local Shine = create("Frame", {
@@ -1407,14 +1459,14 @@ function Library:CreateWindow(cfg)
 	local Sidebar = create("Frame", {
 		Size = UDim2.new(0, sideW, 1, 0),
 		BackgroundColor3 = Theme.Surface,
-		BackgroundTransparency = 0.45,
+		BackgroundTransparency = 0.96,
 		Parent = Body,
 	})
 	create("Frame", {
 		Position = UDim2.fromOffset(sideW, 0),
 		Size = UDim2.new(0, 1, 1, 0),
 		BackgroundColor3 = Theme.Stroke,
-		BackgroundTransparency = 0.3,
+		BackgroundTransparency = 0.88,
 		Parent = Body,
 	})
 
@@ -1436,10 +1488,11 @@ function Library:CreateWindow(cfg)
 		Position = UDim2.new(0.5, 0, 1, -10),
 		Size = UDim2.new(1, -20, 0, 44),
 		BackgroundColor3 = Theme.Element,
+		BackgroundTransparency = 0.9,
 		Parent = Sidebar,
 	})
-	corner(Profile, 10)
-	stroke(Profile, Theme.Stroke, 1, 0.4)
+	corner(Profile, 14)
+	stroke(Profile, Theme.Stroke, 1, 0.88)
 	local Avatar = create("ImageLabel", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 7, 0.5, 0),
@@ -1454,7 +1507,7 @@ function Library:CreateWindow(cfg)
 		Position = UDim2.fromOffset(44, 6),
 		Size = UDim2.new(1, -50, 0, 16),
 		Text = LocalPlayer.DisplayName,
-		Font = Enum.Font.GothamBold,
+		Font = Enum.Font.BuilderSansBold,
 		TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
@@ -1464,7 +1517,7 @@ function Library:CreateWindow(cfg)
 		Position = UDim2.fromOffset(44, 22),
 		Size = UDim2.new(1, -50, 0, 14),
 		Text = "@" .. LocalPlayer.Name,
-		Font = Enum.Font.Gotham,
+		Font = Enum.Font.BuilderSans,
 		TextSize = 11,
 		TextColor3 = Theme.SubText,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -1491,6 +1544,26 @@ function Library:CreateWindow(cfg)
 	padding(Content, 12, 12, 6, 12)
 	Window._Content = Content
 
+	-- Rim: tepi kaca yang berkilau (terang di sudut kiri-atas & kanan-bawah)
+	local Rim = create("Frame", {
+		Name = "Rim",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ZIndex = 10,
+		Parent = Main,
+	})
+	corner(Rim, 18)
+	local RimStroke = stroke(Rim, Color3.new(1, 1, 1), 1.4, 0)
+	create("UIGradient", {
+		Rotation = 45,
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.4),
+			NumberSequenceKeypoint.new(0.5, 0.92),
+			NumberSequenceKeypoint.new(1, 0.62),
+		}),
+		Parent = RimStroke,
+	})
+
 	----------------------------------------------------------------
 	-- Window behaviour
 	----------------------------------------------------------------
@@ -1502,6 +1575,7 @@ function Library:CreateWindow(cfg)
 
 	function Window:SetVisible(state)
 		self._visible = state
+		self:_setBlur(state)
 		if state then
 			Main.Visible = true
 			Main.Size = UDim2.fromOffset(W * 0.92, self._curH * 0.92)
@@ -1525,6 +1599,7 @@ function Library:CreateWindow(cfg)
 
 	function Window:Minimize()
 		self._minimized = not self._minimized
+		self:_setBlur(not self._minimized)
 		local newH = self._minimized and TOP_H + 1 or H
 		local dh = newH - self._curH
 		self._curH = newH
@@ -1549,12 +1624,14 @@ function Library:CreateWindow(cfg)
 		for _, c in ipairs(self._conns) do
 			c:Disconnect()
 		end
+		self:_setBlur(false)
 		tween(Main, {
 			Size = UDim2.fromOffset(W * 0.88, self._curH * 0.88),
 			GroupTransparency = 1,
 		}, EASE.Smooth)
 		task.delay(0.32, function()
 			Gui:Destroy()
+			Blur:Destroy()
 		end)
 	end
 
@@ -1583,10 +1660,10 @@ function Library:CreateWindow(cfg)
 			AnchorPoint = Vector2.new(0, 0.5),
 			Position = UDim2.new(0, 12, 0.5, 0),
 			Size = UDim2.fromOffset(44, 44),
-			BackgroundColor3 = Theme.Surface,
-			BackgroundTransparency = 0,
+			BackgroundColor3 = Theme.Glass,
+			BackgroundTransparency = 0.12,
 			Text = string.upper(string.sub(cfg.Title or "N", 1, 1)),
-			Font = Enum.Font.GothamBlack,
+			Font = Enum.Font.BuilderSansExtraBold,
 			TextSize = 18,
 			TextColor3 = Theme.Accent,
 			Parent = Gui,
@@ -1601,6 +1678,7 @@ function Library:CreateWindow(cfg)
 	-- Animasi masuk
 	Main.Visible = true
 	tween(Main, { Size = UDim2.fromOffset(W, H), GroupTransparency = 0 }, EASE.Spring)
+	Window:_setBlur(true)
 
 	----------------------------------------------------------------
 	-- TAB
@@ -1616,7 +1694,7 @@ function Library:CreateWindow(cfg)
 			LayoutOrder = #self.Tabs + 1,
 			Parent = self._TabList,
 		})
-		corner(Btn, 8)
+		corner(Btn, 10)
 		local Bar = create("Frame", {
 			AnchorPoint = Vector2.new(0, 0.5),
 			Position = UDim2.new(0, 0, 0.5, 0),
@@ -1691,7 +1769,7 @@ function Library:CreateWindow(cfg)
 			Page.Position = UDim2.fromOffset(0, 18)
 			Page.GroupTransparency = 1
 			tween(Page, { Position = UDim2.fromOffset(0, 0), GroupTransparency = 0 }, EASE.Smooth)
-			tween(Btn, { BackgroundTransparency = 0.86 }, EASE.Smooth)
+			tween(Btn, { BackgroundTransparency = 0.78 }, EASE.Smooth)
 			tween(Bar, { Size = UDim2.fromOffset(3, 18) }, EASE.Spring)
 			tween(Label, { TextColor3 = Theme.Text }, EASE.Smooth)
 			iconColor(Theme.Accent)
