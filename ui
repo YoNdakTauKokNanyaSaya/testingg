@@ -1,3 +1,20 @@
+--[[
+	╔═══════════════════════════════════════════════╗
+	║  NebulaUI  •  Roblox Luau UI Library  v1.2    ║
+	║  iOS Glass • Frosted Blur • Smooth Animations ║
+	╚═══════════════════════════════════════════════╝
+
+	Fitur:
+	  Window (drag, minimize, close, toggle key, tombol mengambang di mobile)
+	  Tab dengan transisi halus + Section (card)
+	  Button (ripple), Toggle, Slider, Dropdown (single/multi),
+	  TextBox, Keybind, ColorPicker (HSV), Label
+	  Notifikasi (slide + progress bar)
+	  Flags + Save/Load Config (jika executor mendukung writefile)
+
+	Pemakaian: lihat NebulaUI_Example.lua
+]]
+
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -9,7 +26,7 @@ local LocalPlayer = Players.LocalPlayer
 local Library = {
 	Flags = {},
 	Items = {},
-	Version = "1.1.0",
+	Version = "1.2.0",
 	_nid = 0,
 }
 
@@ -19,13 +36,13 @@ local Library = {
 local Theme = {
 	-- Glass (ala iOS): lapisan putih tembus pandang di atas dasar kaca gelap
 	Glass = Color3.fromRGB(26, 28, 44),
-	GlassAlpha = 0.3,
+	GlassAlpha = 0.5,
 	Background = Color3.fromRGB(26, 28, 44),
 	Surface = Color3.fromRGB(255, 255, 255),
 	Element = Color3.fromRGB(255, 255, 255),
 	ElementHover = Color3.fromRGB(255, 255, 255),
-	ElementAlpha = 0.9,
-	ElementHoverAlpha = 0.8,
+	ElementAlpha = 0.86,
+	ElementHoverAlpha = 0.74,
 	Inset = Color3.fromRGB(0, 0, 0),
 	Track = Color3.fromRGB(100, 102, 124),
 	Stroke = Color3.fromRGB(255, 255, 255),
@@ -474,7 +491,7 @@ function Elements:CreateSection(name)
 		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = Theme.Surface,
-		BackgroundTransparency = 0.94,
+		BackgroundTransparency = 0.9,
 		LayoutOrder = self:_next(),
 		Parent = self._parent,
 	})
@@ -1294,6 +1311,7 @@ function Library:CreateWindow(cfg)
 	-- Lapisan kaca: dasar gelap tembus pandang + pantulan cahaya (sheen)
 	local GlassBase = create("Frame", {
 		Name = "GlassBase",
+		ZIndex = 0,
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		BackgroundTransparency = Theme.GlassAlpha,
@@ -1301,11 +1319,12 @@ function Library:CreateWindow(cfg)
 	})
 	create("UIGradient", {
 		Rotation = 135,
-		Color = ColorSequence.new(Color3.fromRGB(64, 70, 112), Color3.fromRGB(22, 24, 38)),
+		Color = ColorSequence.new(Color3.fromRGB(150, 162, 220), Color3.fromRGB(66, 72, 116)),
 		Parent = GlassBase,
 	})
 	local Sheen = create("Frame", {
 		Name = "Sheen",
+		ZIndex = 0,
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		Parent = Main,
@@ -1342,7 +1361,7 @@ function Library:CreateWindow(cfg)
 		Name = "TopBar",
 		Size = UDim2.new(1, 0, 0, TOP_H),
 		BackgroundColor3 = Theme.Surface,
-		BackgroundTransparency = 0.95,
+		BackgroundTransparency = 0.92,
 		Parent = Main,
 	})
 	local Logo = create("Frame", {
@@ -1459,7 +1478,7 @@ function Library:CreateWindow(cfg)
 	local Sidebar = create("Frame", {
 		Size = UDim2.new(0, sideW, 1, 0),
 		BackgroundColor3 = Theme.Surface,
-		BackgroundTransparency = 0.96,
+		BackgroundTransparency = 0.93,
 		Parent = Body,
 	})
 	create("Frame", {
@@ -1817,4 +1836,5 @@ function Library:CreateWindow(cfg)
 	return Window
 end
 
+print("[NebulaUI] v" .. Library.Version .. " loaded")
 return Library
