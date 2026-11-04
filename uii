@@ -1,16 +1,3 @@
---[[
-	╔═══════════════════════════════════════════════╗
-	║  NebulaUI  •  Roblox Luau UI Library  v2.0    ║
-	║  iOS Glass • Icons • Sections • Sub-tabs      ║
-	╚═══════════════════════════════════════════════╝
-
-	Icon: tulis "pack:nama", contoh "lucide:bot", "solar:home-bold", "geist:...", "craft:..."
-	      (atau langsung "rbxassetid://ID"). Pack di-load sekali saat pertama dipakai.
-
-	Struktur:
-	  Window → Tab → Section (card, bisa collapse) → SubTab (pill) → Elemen
-]]
-
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -23,7 +10,7 @@ local LocalPlayer = Players.LocalPlayer
 local Library = {
 	Flags = {},
 	Items = {},
-	Version = "2.0.0",
+	Version = "2.1.0",
 	_nid = 0,
 }
 
@@ -87,6 +74,23 @@ local function tween(obj, props, info)
 	return t
 end
 
+-- Registry warna aksen: elemen yang didaftarkan ikut berubah saat Library:SetAccent()
+local accentRegs, accentHooks = {}, {}
+local function accented(inst, prop)
+	table.insert(accentRegs, { inst, prop })
+	return inst
+end
+local function bindAccent(fn)
+	table.insert(accentHooks, fn)
+	return fn
+end
+local function accentIcon(inst)
+	if inst then
+		accented(inst, inst:IsA("ImageLabel") and "ImageColor3" or "TextColor3")
+	end
+	return inst
+end
+
 ----------------------------------------------------------------------
 -- HELPERS
 ----------------------------------------------------------------------
@@ -116,6 +120,8 @@ local function create(class, props, children)
 	for k, v in pairs(props or {}) do
 		if k == "Weight" then
 			inst.FontFace = Font.new(FamilyAsset, WEIGHT[v] or WEIGHT.Medium)
+		elseif k == "Accent" then
+			table.insert(accentRegs, { inst, v })
 		elseif k ~= "Parent" then
 			inst[k] = v
 		end
@@ -261,6 +267,9 @@ local function resolveIcon(str)
 	if string.find(str, "^rbxasset") then
 		return str
 	end
+	if not string.find(str, ":", 1, true) then
+		str = "lucide:" .. str
+	end
 	local lib, name = str:match("^([^:]+):(.+)$")
 	if lib and name and iconSources[lib] then
 		return loadIconPack(lib)[name] or ""
@@ -306,6 +315,66 @@ local function setIconColor(inst, color, info)
 	end
 	local prop = inst:IsA("ImageLabel") and "ImageColor3" or "TextColor3"
 	tween(inst, { [prop] = color }, info or EASE.Smooth)
+end
+
+function Library:SetAccent(c1, c2, instant)
+	if typeof(c1) ~= "Color3" then
+		return
+	end
+	if typeof(c2) ~= "Color3" then
+		local h, s, v = c1:ToHSV()
+		c2 = Color3.fromHSV((h + 0.07) % 1, math.clamp(s * 0.65, 0, 1), math.clamp(v + 0.15, 0, 1))
+	end
+	Theme.Accent, Theme.Accent2 = c1, c2
+	for _, r in ipairs(accentRegs) do
+		local inst, prop = r[1], r[2]
+		if inst.Parent then
+			if instant then
+				inst[prop] = c1
+			else
+				tween(inst, { [prop] = c1 }, EASE.Smooth)
+			end
+		end
+	end
+	for _, fn in ipairs(accentHooks) do
+		safe(fn, c1, c2)
+	end
+end
+
+local function imageAsset(str)
+	if str == nil or str == "" then
+		return ""
+	end
+	if tonumber(str) then
+		return "rbxassetid://" .. tostring(str)
+	end
+	local a = resolveIcon(str)
+	if a ~= "" then
+		return a
+	end
+	return tostring(str)
+end
+
+local NAMED_COLORS = {
+	Red = Color3.fromRGB(255, 69, 58),
+	Orange = Color3.fromRGB(255, 159, 10),
+	Yellow = Color3.fromRGB(255, 214, 10),
+	Green = Color3.fromRGB(48, 209, 88),
+	Teal = Color3.fromRGB(64, 200, 224),
+	Blue = Color3.fromRGB(10, 132, 255),
+	Purple = Color3.fromRGB(191, 90, 242),
+	Pink = Color3.fromRGB(255, 55, 95),
+	Grey = Color3.fromRGB(142, 142, 147),
+	White = Color3.fromRGB(235, 235, 245),
+}
+local function namedColor(c)
+	if typeof(c) == "Color3" then
+		return c
+	end
+	if type(c) == "string" and c ~= "" then
+		return NAMED_COLORS[c:sub(1, 1):upper() .. c:sub(2):lower()]
+	end
+	return nil
 end
 
 ----------------------------------------------------------------------
@@ -402,6 +471,12 @@ local function getNotifHolder()
 end
 
 function Library:Notify(cfg)
+	task.spawn(function()
+		Library:_notify(cfg)
+	end)
+end
+
+function Library:_notify(cfg)
 	cfg = cfg or {}
 	local holder = getNotifHolder()
 	local kinds = {
@@ -526,6 +601,11 @@ function Library:Notify(cfg)
 
 	task.spawn(function()
 		task.wait(0.05)
+		local tries = 0
+		while Card.AbsoluteSize.Y < 10 and tries < 20 do
+			task.wait(0.05)
+			tries += 1
+		end
 		local h = Card.AbsoluteSize.Y
 		tween(Wrap, { Size = UDim2.new(1, 0, 0, h + 10) }, EASE.Smooth)
 		task.wait(0.1)
@@ -554,25 +634,79 @@ function Elements:_next()
 end
 
 --[[
-	Kerangka elemen (card kaca, tinggi otomatis):
+	Kartu kaca. F TIDAK punya layout (aman untuk overlay/ripple/lock);
+	seluruh isi ada di Stack (UIListLayout):
 	  F (card)
-	   ├─ Top   : [Teks: judul + deskripsi (wrap)]   [kontrol di kanan]
-	   └─ Extra : area tambahan (slider bar, list dropdown, color picker)
+	   └─ Stack
+	       ├─ Top   : [Teks: judul + deskripsi (wrap)]   [kontrol di kanan]
+	       └─ Extra : area tambahan (slider bar, list dropdown, color picker, progress)
 ]]
-local function baseElement(self, cfg, rightWidth, minH)
+local stackOf = setmetatable({}, { __mode = "k" })
+
+local function makeCard(self, cfg, tint)
+	local baseT = tint and 0.8 or Theme.ElementAlpha
+	local hoverT = tint and 0.7 or Theme.ElementHoverAlpha
 	local F = create("Frame", {
 		Name = cfg.Name or "Element",
 		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundColor3 = Theme.Element,
-		BackgroundTransparency = Theme.ElementAlpha,
+		BackgroundColor3 = tint or Theme.Element,
+		BackgroundTransparency = baseT,
 		ClipsDescendants = true,
 		LayoutOrder = self:_next(),
 		Parent = self._parent,
 	})
 	corner(F, 14)
-	local st = stroke(F, Theme.Stroke, 1, 0.88)
-	listLayout(F, 0)
+	local st = stroke(F, tint or Theme.Stroke, 1, tint and 0.55 or 0.88)
+	local Stack = create("Frame", {
+		Name = "Stack",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Parent = F,
+	})
+	listLayout(Stack, 0)
+	stackOf[F] = Stack
+
+	-- Locked overlay
+	local Lock = create("TextButton", {
+		Name = "Lock",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 0.5,
+		Visible = false,
+		ZIndex = 20,
+		Parent = F,
+	})
+	corner(Lock, 14)
+	makeIcon(Lock, "lucide:lock", 16, Theme.SubText, "L", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -14, 0.5, 0),
+		ZIndex = 21,
+	})
+	local function setLocked(state)
+		Lock.Visible = state == true
+	end
+	setLocked(cfg.Locked)
+
+	F.MouseEnter:Connect(function()
+		tween(F, { BackgroundTransparency = hoverT }, EASE.Fast)
+		tween(st, { Transparency = tint and 0.35 or 0.7 }, EASE.Fast)
+	end)
+	F.MouseLeave:Connect(function()
+		tween(F, { BackgroundTransparency = baseT }, EASE.Fast)
+		tween(st, { Transparency = tint and 0.55 or 0.88 }, EASE.Fast)
+	end)
+
+	return F, Stack, st, setLocked
+end
+
+local function baseElement(self, cfg, rightWidth, minH)
+	-- alias gaya WindUI: Title/Desc
+	cfg.Name = cfg.Name or cfg.Title
+	cfg.Description = cfg.Description or cfg.Desc
+
+	local F, Stack, st, setLocked = makeCard(self, cfg)
 
 	local Top = create("Frame", {
 		Name = "Top",
@@ -580,7 +714,7 @@ local function baseElement(self, cfg, rightWidth, minH)
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
 		LayoutOrder = 1,
-		Parent = F,
+		Parent = Stack,
 	})
 	create("UISizeConstraint", { MinSize = Vector2.new(0, minH or 52), Parent = Top })
 
@@ -624,16 +758,7 @@ local function baseElement(self, cfg, rightWidth, minH)
 		})
 	end
 
-	F.MouseEnter:Connect(function()
-		tween(F, { BackgroundTransparency = Theme.ElementHoverAlpha }, EASE.Fast)
-		tween(st, { Transparency = 0.7 }, EASE.Fast)
-	end)
-	F.MouseLeave:Connect(function()
-		tween(F, { BackgroundTransparency = Theme.ElementAlpha }, EASE.Fast)
-		tween(st, { Transparency = 0.88 }, EASE.Fast)
-	end)
-
-	return F, Top, st, Title
+	return F, Top, st, Title, setLocked
 end
 
 local function makeExtra(F, height)
@@ -643,7 +768,7 @@ local function makeExtra(F, height)
 		BackgroundTransparency = 1,
 		ClipsDescendants = true,
 		LayoutOrder = 2,
-		Parent = F,
+		Parent = stackOf[F],
 	})
 end
 
@@ -656,9 +781,13 @@ end
 
 local function dragInput(window, frame, onMove, onState)
 	local active = false
+	local sf = frame:FindFirstAncestorOfClass("ScrollingFrame")
 	frame.InputBegan:Connect(function(input)
 		if isPointer(input) then
 			active = true
+			if sf then
+				sf.ScrollingEnabled = false
+			end
 			if onState then
 				onState(true)
 			end
@@ -673,6 +802,9 @@ local function dragInput(window, frame, onMove, onState)
 	window:_track(UserInputService.InputEnded:Connect(function(input)
 		if active and isPointer(input) then
 			active = false
+			if sf then
+				sf.ScrollingEnabled = true
+			end
 			if onState then
 				onState(false)
 			end
@@ -717,6 +849,7 @@ function Elements:CreateSection(arg)
 	})
 	if secIcon then
 		x = 44
+		accentIcon(secIcon)
 	end
 	create("TextLabel", {
 		Position = UDim2.fromOffset(x, 0),
@@ -836,6 +969,7 @@ function Elements:CreateSubTab(name, icon)
 	pl.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 	local ico = icon and makeIcon(Pill, icon, 16, Theme.Accent, nil, { LayoutOrder = 1 })
+	accentIcon(ico)
 	local Label = create("TextLabel", {
 		Size = UDim2.new(0, 0, 1, 0),
 		AutomaticSize = Enum.AutomaticSize.X,
@@ -857,6 +991,7 @@ function Elements:CreateSubTab(name, icon)
 		LayoutOrder = self:_next(),
 		Parent = self._parent,
 	})
+	padding(Page, 1, 1, 1, 1)
 	listLayout(Page, 8)
 
 	local Sub = setmetatable({ _window = self._window, _parent = Page, _order = 0 }, Elements)
@@ -917,7 +1052,7 @@ end
 -- ───────────────────────── BUTTON ─────────────────────────
 function Elements:CreateButton(cfg)
 	cfg = cfg or {}
-	local F, Top, st = baseElement(self, cfg, 44)
+	local F, Top, st, Title, setLocked = baseElement(self, cfg, 44)
 
 	create("TextLabel", {
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -927,6 +1062,7 @@ function Elements:CreateButton(cfg)
 		TextSize = 22,
 		Weight = "Bold",
 		TextColor3 = Theme.Accent,
+		Accent = "TextColor3",
 		Parent = Top,
 	})
 
@@ -942,9 +1078,9 @@ function Elements:CreateButton(cfg)
 		safe(cfg.Callback)
 	end)
 
-	local obj = {}
+	local obj = { SetLocked = setLocked }
 	function obj:SetText(t)
-		F.Top.Text.Title.Text = t
+		Title.Text = t
 	end
 	return obj
 end
@@ -953,7 +1089,7 @@ end
 function Elements:CreateToggle(cfg)
 	cfg = cfg or {}
 	local value = cfg.Default == true
-	local F, Top = baseElement(self, cfg, 70)
+	local F, Top, st, Title, setLocked = baseElement(self, cfg, 70)
 
 	local Track = create("Frame", {
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -963,7 +1099,7 @@ function Elements:CreateToggle(cfg)
 		Parent = Top,
 	})
 	corner(Track, 999)
-	local Glow = stroke(Track, Theme.Accent, 1.5, 1)
+	local Glow = accented(stroke(Track, Theme.Accent, 1.5, 1), "Color")
 
 	local Knob = create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -982,8 +1118,13 @@ function Elements:CreateToggle(cfg)
 		}, animate and EASE.Spring or EASE.Instant)
 		tween(Glow, { Transparency = value and 0.55 or 1 }, EASE.Smooth)
 	end
+	bindAccent(function(c)
+		if value then
+			Track.BackgroundColor3 = c
+		end
+	end)
 
-	local obj = {}
+	local obj = { SetLocked = setLocked }
 	function obj:Set(v, silent)
 		value = v == true
 		render(true)
@@ -1022,7 +1163,7 @@ function Elements:CreateSlider(cfg)
 	local suffix = cfg.Suffix or ""
 	local value = math.clamp(cfg.Default or min, min, max)
 
-	local F, Top = baseElement(self, cfg, 100)
+	local F, Top, st, Title, setLocked = baseElement(self, cfg, 100)
 	local ValueLabel = create("TextLabel", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -14, 0.5, 0),
@@ -1030,13 +1171,14 @@ function Elements:CreateSlider(cfg)
 		TextSize = 12,
 		Weight = "Bold",
 		TextColor3 = Theme.Accent,
+		Accent = "TextColor3",
 		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = Top,
 	})
 
-	local Extra = makeExtra(F, 26)
+	local Extra = makeExtra(F, 28)
 	local Bar = create("Frame", {
-		Position = UDim2.new(0, 14, 0, 6),
+		Position = UDim2.new(0, 14, 0, 8),
 		Size = UDim2.new(1, -28, 0, 6),
 		BackgroundColor3 = Theme.Track,
 		Parent = Extra,
@@ -1048,7 +1190,10 @@ function Elements:CreateSlider(cfg)
 		Parent = Bar,
 	})
 	corner(Fill, 999)
-	create("UIGradient", { Color = ColorSequence.new(Theme.Accent, Theme.Accent2), Parent = Fill })
+	local fillGrad = create("UIGradient", { Color = ColorSequence.new(Theme.Accent, Theme.Accent2), Parent = Fill })
+	bindAccent(function(a, b)
+		fillGrad.Color = ColorSequence.new(a, b)
+	end)
 	local Knob = create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(1, 0, 0.5, 0),
@@ -1057,7 +1202,7 @@ function Elements:CreateSlider(cfg)
 		Parent = Fill,
 	})
 	corner(Knob, 999)
-	stroke(Knob, Theme.Accent, 2, 0)
+	accented(stroke(Knob, Theme.Accent, 2, 0), "Color")
 
 	local function render(animate)
 		local rel = (max == min) and 0 or (value - min) / (max - min)
@@ -1065,7 +1210,7 @@ function Elements:CreateSlider(cfg)
 		ValueLabel.Text = tostring(value) .. suffix
 	end
 
-	local obj = {}
+	local obj = { SetLocked = setLocked }
 	function obj:Set(v, silent)
 		v = math.clamp(round(tonumber(v) or min, inc), min, max)
 		local changed = v ~= value
@@ -1109,7 +1254,7 @@ function Elements:CreateDropdown(cfg)
 	local open = false
 	local buttons = {}
 
-	local F, Top = baseElement(self, cfg, 170)
+	local F, Top, st, Title, setLocked = baseElement(self, cfg, 170)
 
 	local Selected = create("TextLabel", {
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -1135,6 +1280,7 @@ function Elements:CreateDropdown(cfg)
 		BackgroundTransparency = 0.62,
 		ScrollBarThickness = 2,
 		ScrollBarImageColor3 = Theme.Accent,
+		Accent = "ScrollBarImageColor3",
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		Parent = Extra,
@@ -1159,6 +1305,10 @@ function Elements:CreateDropdown(cfg)
 			}, EASE.Fast)
 		end
 	end
+
+	bindAccent(function()
+		paint()
+	end)
 
 	local function display()
 		if multi then
@@ -1245,7 +1395,7 @@ function Elements:CreateDropdown(cfg)
 		end
 	end
 
-	local obj = {}
+	local obj = { SetLocked = setLocked }
 	function obj:Set(v, silent)
 		if multi then
 			value = type(v) == "table" and table.clone(v) or {}
@@ -1288,7 +1438,7 @@ end
 function Elements:CreateTextBox(cfg)
 	cfg = cfg or {}
 	local value = cfg.Default or ""
-	local F, Top = baseElement(self, cfg, 180)
+	local F, Top, st, Title, setLocked = baseElement(self, cfg, 180)
 
 	local Box = create("TextBox", {
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -1313,7 +1463,7 @@ function Elements:CreateTextBox(cfg)
 		tween(bs, { Color = Theme.Accent, Transparency = 0 }, EASE.Fast)
 	end)
 
-	local obj = {}
+	local obj = { SetLocked = setLocked }
 	function obj:Set(v, silent)
 		value = tostring(v)
 		Box.Text = value
@@ -1358,7 +1508,7 @@ function Elements:CreateKeybind(cfg)
 	cfg = cfg or {}
 	local key = cfg.Default or Enum.KeyCode.Unknown
 	local listening = false
-	local F, Top = baseElement(self, cfg, 80)
+	local F, Top, st, Title, setLocked = baseElement(self, cfg, 80)
 
 	local Btn = create("TextButton", {
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -1383,7 +1533,7 @@ function Elements:CreateKeybind(cfg)
 	end
 	label()
 
-	local obj = {}
+	local obj = { SetLocked = setLocked }
 	function obj:Set(k, silent)
 		if typeof(k) == "string" then
 			k = Enum.KeyCode[k]
@@ -1428,14 +1578,26 @@ function Elements:CreateKeybind(cfg)
 end
 
 -- ───────────────────────── COLOR PICKER ─────────────────────────
+--[[
+	Tab:Colorpicker({
+		Title = "Colorpicker", Desc = "...", Default = Color3.fromRGB(0,255,0),
+		Transparency = 0,          -- (opsional) tampilkan slider transparansi
+		Locked = false,
+		ApplyToTheme = true,       -- (opsional) warna ini langsung dipakai sebagai warna aksen UI
+		Callback = function(color, transparency) end,
+	})
+]]
 function Elements:CreateColorPicker(cfg)
 	cfg = cfg or {}
 	local color = cfg.Default or Theme.Accent
 	local h, s, v = color:ToHSV()
+	local hasAlpha = cfg.Transparency ~= nil
+	local alpha = math.clamp(tonumber(cfg.Transparency) or 0, 0, 1)
 	local open = false
 	local PICK_H = 110
+	local EXTRA_H = PICK_H + (hasAlpha and 28 or 0) + 14
 
-	local F, Top = baseElement(self, cfg, 150)
+	local F, Top, _, _, setLocked = baseElement(self, cfg, 150)
 
 	local Hex = create("TextLabel", {
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -1452,6 +1614,7 @@ function Elements:CreateColorPicker(cfg)
 		Position = UDim2.new(1, -14, 0.5, 0),
 		Size = UDim2.fromOffset(38, 20),
 		BackgroundColor3 = color,
+		BackgroundTransparency = alpha,
 		Parent = Top,
 	})
 	corner(Swatch, 7)
@@ -1525,19 +1688,54 @@ function Elements:CreateColorPicker(cfg)
 	corner(HueCursor, 3)
 	stroke(HueCursor, Color3.fromRGB(20, 20, 30), 1, 0.2)
 
-	local obj = {}
+	local AlphaBar, AlphaCursor
+	if hasAlpha then
+		AlphaBar = create("Frame", {
+			Position = UDim2.new(0, 14, 0, PICK_H + 10),
+			Size = UDim2.new(1, -28, 0, 14),
+			BackgroundColor3 = color,
+			Parent = Extra,
+		})
+		corner(AlphaBar, 7)
+		create("UIGradient", {
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			Parent = AlphaBar,
+		})
+		stroke(AlphaBar, Color3.new(1, 1, 1), 1, 0.8)
+		AlphaCursor = create("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Size = UDim2.fromOffset(6, 20),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			ZIndex = 3,
+			Parent = AlphaBar,
+		})
+		corner(AlphaCursor, 3)
+		stroke(AlphaCursor, Color3.fromRGB(20, 20, 30), 1, 0.2)
+	end
+
+	local obj = { SetLocked = setLocked }
 	local function refresh(silent)
 		color = Color3.fromHSV(h, s, v)
 		SV.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
 		SVCursor.Position = UDim2.fromScale(s, 1 - v)
 		HueCursor.Position = UDim2.fromScale(0.5, h)
-		tween(Swatch, { BackgroundColor3 = color }, EASE.Fast)
+		if AlphaBar then
+			AlphaBar.BackgroundColor3 = color
+			AlphaCursor.Position = UDim2.fromScale(alpha, 0.5)
+		end
+		tween(Swatch, { BackgroundColor3 = color, BackgroundTransparency = alpha }, EASE.Fast)
 		Hex.Text = "#" .. color:ToHex():upper()
 		if cfg.Flag then
 			Library.Flags[cfg.Flag] = color
 		end
 		if not silent then
-			safe(cfg.Callback, color)
+			if cfg.ApplyToTheme then
+				Library:SetAccent(color, nil, true)
+			end
+			safe(cfg.Callback, color, alpha)
 		end
 	end
 
@@ -1545,8 +1743,12 @@ function Elements:CreateColorPicker(cfg)
 		h, s, v = c:ToHSV()
 		refresh(silent)
 	end
+	function obj:SetTransparency(a, silent)
+		alpha = math.clamp(tonumber(a) or 0, 0, 1)
+		refresh(silent)
+	end
 	function obj:Get()
-		return color
+		return color, alpha
 	end
 
 	dragInput(self._window, SV, function(pos)
@@ -1558,17 +1760,288 @@ function Elements:CreateColorPicker(cfg)
 		h = math.clamp((pos.Y - HueBar.AbsolutePosition.Y) / math.max(HueBar.AbsoluteSize.Y, 1), 0, 0.999)
 		refresh()
 	end)
+	if AlphaBar then
+		dragInput(self._window, AlphaBar, function(pos)
+			alpha = math.clamp((pos.X - AlphaBar.AbsolutePosition.X) / math.max(AlphaBar.AbsoluteSize.X, 1), 0, 1)
+			refresh()
+		end)
+	end
 
 	local Click = create("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 4, Parent = Top })
 	Click.MouseButton1Click:Connect(function()
 		open = not open
-		tween(Extra, { Size = UDim2.new(1, 0, 0, open and (PICK_H + 14) or 0) }, EASE.Smooth)
+		tween(Extra, { Size = UDim2.new(1, 0, 0, open and EXTRA_H or 0) }, EASE.Smooth)
 	end)
 
 	register(cfg.Flag, obj, color)
 	refresh(true)
 	return obj
 end
+
+-- ───────────────────────── PARAGRAPH ─────────────────────────
+--[[
+	Tab:Paragraph({
+		Title, Desc, Color = "Red" (nama atau Color3), Image, ImageSize = 30,
+		Thumbnail, ThumbnailSize = 80, Locked = false,
+		Buttons = { { Icon = "bird", Title = "Button", Callback = function() end } },
+	})
+]]
+function Elements:CreateParagraph(cfg)
+	cfg = cfg or {}
+	cfg.Name = cfg.Name or cfg.Title
+	cfg.Description = cfg.Description or cfg.Desc
+	local tint = namedColor(cfg.Color)
+	local F, Stack, _, setLocked = makeCard(self, cfg, tint)
+
+	local hasThumb = cfg.Thumbnail ~= nil and cfg.Thumbnail ~= ""
+	local thumbH = cfg.ThumbnailSize or 80
+	if hasThumb then
+		local Wrap = create("Frame", {
+			Size = UDim2.new(1, 0, 0, thumbH + 12),
+			BackgroundTransparency = 1,
+			LayoutOrder = 1,
+			Parent = Stack,
+		})
+		padding(Wrap, 12, 12, 12, 0)
+		local img = create("ImageLabel", {
+			Size = UDim2.fromScale(1, 1),
+			Image = imageAsset(cfg.Thumbnail),
+			ScaleType = Enum.ScaleType.Crop,
+			BackgroundColor3 = Theme.Inset,
+			BackgroundTransparency = 0.6,
+			Parent = Wrap,
+		})
+		corner(img, 10)
+	end
+
+	local hasImg = cfg.Image ~= nil and cfg.Image ~= ""
+	local imgSize = cfg.ImageSize or 30
+	local Head = create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+		Parent = Stack,
+	})
+	padding(Head, 14 + (hasImg and (imgSize + 10) or 0), 12, 14, 12)
+	listLayout(Head, 4)
+	if hasImg then
+		local im = create("ImageLabel", {
+			Position = UDim2.fromOffset(14, hasThumb and (thumbH + 24) or 12),
+			Size = UDim2.fromOffset(imgSize, imgSize),
+			Image = imageAsset(cfg.Image),
+			Parent = F,
+		})
+		corner(im, 8)
+	end
+	local Title = create("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Text = cfg.Name or "Paragraph",
+		TextSize = 13,
+		Weight = "Bold",
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		LayoutOrder = 1,
+		Parent = Head,
+	})
+	local Desc = create("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Text = cfg.Description or "",
+		Visible = cfg.Description ~= nil,
+		TextSize = 12,
+		Weight = "Regular",
+		TextColor3 = Theme.SubText,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		LayoutOrder = 2,
+		Parent = Head,
+	})
+
+	if type(cfg.Buttons) == "table" and #cfg.Buttons > 0 then
+		local Row = create("Frame", {
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			BackgroundTransparency = 1,
+			LayoutOrder = 3,
+			Parent = Stack,
+		})
+		padding(Row, 12, 0, 12, 12)
+		local rl = listLayout(Row, 8, true)
+		rl.Wraps = true
+		rl.VerticalAlignment = Enum.VerticalAlignment.Top
+		for i, b in ipairs(cfg.Buttons) do
+			local Btn = create("TextButton", {
+				Size = UDim2.new(0, 0, 0, 30),
+				AutomaticSize = Enum.AutomaticSize.X,
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				BackgroundTransparency = 0.86,
+				LayoutOrder = i,
+				Parent = Row,
+			})
+			corner(Btn, 10)
+			local bst = stroke(Btn, Theme.Stroke, 1, 0.8)
+			padding(Btn, 12, 0, 14, 0)
+			local bl = listLayout(Btn, 6, true)
+			bl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+			if b.Icon then
+				makeIcon(Btn, b.Icon, 15, tint or Theme.Accent, nil, { LayoutOrder = 1 })
+			end
+			create("TextLabel", {
+				Size = UDim2.new(0, 0, 1, 0),
+				AutomaticSize = Enum.AutomaticSize.X,
+				Text = b.Title or b.Name or "Button",
+				TextSize = 12,
+				Weight = "Bold",
+				LayoutOrder = 2,
+				Parent = Btn,
+			})
+			Btn.MouseEnter:Connect(function()
+				tween(Btn, { BackgroundTransparency = 0.74 }, EASE.Fast)
+			end)
+			Btn.MouseLeave:Connect(function()
+				tween(Btn, { BackgroundTransparency = 0.86 }, EASE.Fast)
+			end)
+			Btn.MouseButton1Click:Connect(function()
+				bst.Color = tint or Theme.Accent
+				tween(bst, { Color = Theme.Stroke }, EASE.Slow)
+				safe(b.Callback)
+			end)
+		end
+	end
+
+	local obj = { SetLocked = setLocked }
+	function obj:SetTitle(t)
+		Title.Text = t
+	end
+	function obj:SetDesc(t)
+		Desc.Text = t
+		Desc.Visible = t ~= nil and t ~= ""
+	end
+	function obj:Destroy()
+		F:Destroy()
+	end
+	return obj
+end
+
+-- ───────────────────────── PROGRESS BAR ─────────────────────────
+--[[
+	Tab:ProgressBar({
+		Title = "Syncing", Desc = "Please wait...",
+		Indeterminate = true, IndeterminateText = "Syncing...", Speed = 1.2,
+		-- mode biasa: Default/Value, Min, Max, Suffix
+	})
+	obj:Set(v)  obj:SetIndeterminate(true/false, "teks")  obj:SetTitle()  obj:SetDesc()
+]]
+function Elements:CreateProgressBar(cfg)
+	cfg = cfg or {}
+	local indeterminate = cfg.Indeterminate == true
+	local idleText = cfg.IndeterminateText or "Loading..."
+	local min, max = cfg.Min or 0, cfg.Max or 100
+	local value = math.clamp(cfg.Default or cfg.Value or 0, min, max)
+	local speed = math.max(cfg.Speed or 1, 0.1)
+
+	local F, Top, _, Title, setLocked = baseElement(self, cfg, 130)
+	local Label = create("TextLabel", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -14, 0.5, 0),
+		Size = UDim2.fromOffset(120, 18),
+		TextSize = 12,
+		Weight = "Bold",
+		TextColor3 = Theme.Accent,
+		Accent = "TextColor3",
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = Top,
+	})
+
+	local Extra = makeExtra(F, 24)
+	local Track = create("Frame", {
+		Position = UDim2.new(0, 14, 0, 4),
+		Size = UDim2.new(1, -28, 0, 8),
+		BackgroundColor3 = Theme.Track,
+		ClipsDescendants = true,
+		Parent = Extra,
+	})
+	corner(Track, 999)
+	local Fill = create("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Parent = Track,
+	})
+	corner(Fill, 999)
+	local grad = create("UIGradient", { Color = ColorSequence.new(Theme.Accent, Theme.Accent2), Parent = Fill })
+	bindAccent(function(a, b)
+		grad.Color = ColorSequence.new(a, b)
+	end)
+
+	local loop
+	local function render(animate)
+		if loop then
+			loop:Cancel()
+			loop = nil
+		end
+		if indeterminate then
+			Fill.Size = UDim2.fromScale(0.4, 1)
+			Fill.Position = UDim2.fromScale(-0.4, 0)
+			loop = TweenService:Create(Fill, TweenInfo.new(
+				1.4 / speed, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, false
+			), { Position = UDim2.fromScale(1, 0) })
+			loop:Play()
+			Label.Text = idleText
+		else
+			Fill.Position = UDim2.fromScale(0, 0)
+			local rel = (max == min) and 0 or (value - min) / (max - min)
+			tween(Fill, { Size = UDim2.fromScale(rel, 1) }, animate and EASE.Smooth or EASE.Instant)
+			Label.Text = string.format("%d%%", math.floor(rel * 100 + 0.5))
+		end
+	end
+
+	local obj = { SetLocked = setLocked }
+	function obj:Set(v)
+		value = math.clamp(tonumber(v) or min, min, max)
+		indeterminate = false
+		render(true)
+	end
+	function obj:Get()
+		return value
+	end
+	function obj:SetIndeterminate(state, text)
+		indeterminate = state == true
+		if text then
+			idleText = text
+		end
+		render(true)
+	end
+	function obj:SetTitle(t)
+		Title.Text = t
+	end
+	function obj:SetDesc(t)
+		local d = Top.Text:FindFirstChild("Desc")
+		if d then
+			d.Text = t
+		end
+	end
+
+	render(false)
+	return obj
+end
+
+-- Alias gaya WindUI: Tab:Paragraph(), Tab:Colorpicker(), Tab:ProgressBar(), dst.
+Elements.Paragraph = Elements.CreateParagraph
+Elements.Colorpicker = Elements.CreateColorPicker
+Elements.ProgressBar = Elements.CreateProgressBar
+Elements.Button = Elements.CreateButton
+Elements.Toggle = Elements.CreateToggle
+Elements.Slider = Elements.CreateSlider
+Elements.Dropdown = Elements.CreateDropdown
+Elements.Input = Elements.CreateTextBox
+Elements.Keybind = Elements.CreateKeybind
+Elements.Label = Elements.CreateLabel
+Elements.Section = Elements.CreateSection
 
 ----------------------------------------------------------------------
 -- WINDOW
@@ -1720,11 +2193,14 @@ function Library:CreateWindow(cfg)
 		Parent = TopBar,
 	})
 	corner(Logo, 9)
-	create("UIGradient", {
+	local logoGrad = create("UIGradient", {
 		Rotation = 45,
 		Color = ColorSequence.new(Theme.Accent, Theme.Accent2),
 		Parent = Logo,
 	})
+	bindAccent(function(a, b)
+		logoGrad.Color = ColorSequence.new(a, b)
+	end)
 	local logoIcon = cfg.Icon and makeIcon(Logo, cfg.Icon, 18, Color3.new(1, 1, 1), nil, {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
@@ -1812,6 +2288,9 @@ function Library:CreateWindow(cfg)
 		Offset = Vector2.new(-1, 0),
 		Parent = Shine,
 	})
+	bindAccent(function(a, b)
+		ShineGrad.Color = ColorSequence.new(a, b)
+	end)
 	tween(ShineGrad, { Offset = Vector2.new(1, 0) },
 		TweenInfo.new(2.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true))
 
@@ -1838,7 +2317,7 @@ function Library:CreateWindow(cfg)
 	})
 
 	local TabList = create("ScrollingFrame", {
-		Size = UDim2.new(1, 0, 1, -64),
+		Size = UDim2.new(1, 0, 1, (cfg.User == nil or cfg.User.Enabled ~= false) and -64 or -10),
 		BackgroundTransparency = 1,
 		ScrollBarThickness = 0,
 		CanvasSize = UDim2.new(),
@@ -1849,57 +2328,94 @@ function Library:CreateWindow(cfg)
 	listLayout(TabList, 4)
 	Window._TabList = TabList
 
-	-- Profil pemain
-	local Profile = create("Frame", {
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -10),
-		Size = UDim2.new(1, -20, 0, 44),
-		BackgroundColor3 = Theme.Element,
-		BackgroundTransparency = 0.88,
-		Parent = Sidebar,
-	})
-	corner(Profile, 14)
-	stroke(Profile, Theme.Stroke, 1, 0.88)
-	local Avatar = create("ImageLabel", {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 7, 0.5, 0),
-		Size = UDim2.fromOffset(30, 30),
-		BackgroundColor3 = Theme.Track,
-		BackgroundTransparency = 0,
-		Parent = Profile,
-	})
-	corner(Avatar, 999)
-	stroke(Avatar, Theme.Accent, 1.5, 0.2)
-	create("TextLabel", {
-		Position = UDim2.fromOffset(44, 6),
-		Size = UDim2.new(1, -50, 0, 16),
-		Text = LocalPlayer.DisplayName,
-		TextSize = 11,
-		Weight = "Bold",
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Parent = Profile,
-	})
-	create("TextLabel", {
-		Position = UDim2.fromOffset(44, 22),
-		Size = UDim2.new(1, -50, 0, 14),
-		Text = "@" .. LocalPlayer.Name,
-		TextSize = 10,
-		Weight = "Regular",
-		TextColor3 = Theme.SubText,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Parent = Profile,
-	})
-	task.spawn(function()
-		local ok, img = pcall(function()
-			return Players:GetUserThumbnailAsync(
-				LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
-		end)
-		if ok then
-			Avatar.Image = img
+	-- Profil pemain: User = { Enabled = true, Anonymous = true, Callback = function() end }
+	local userCfg = cfg.User or {}
+	local userEnabled = userCfg.Enabled ~= false
+	local anonymous = userCfg.Anonymous == true
+	if userEnabled then
+		local Profile = create("TextButton", {
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -10),
+			Size = UDim2.new(1, -20, 0, 44),
+			BackgroundColor3 = Theme.Element,
+			BackgroundTransparency = 0.88,
+			Parent = Sidebar,
+		})
+		corner(Profile, 14)
+		stroke(Profile, Theme.Stroke, 1, 0.88)
+		local Avatar = create("ImageLabel", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 7, 0.5, 0),
+			Size = UDim2.fromOffset(30, 30),
+			BackgroundColor3 = Theme.Track,
+			BackgroundTransparency = 0,
+			Parent = Profile,
+		})
+		corner(Avatar, 999)
+		accented(stroke(Avatar, Theme.Accent, 1.5, 0.2), "Color")
+		local AvatarIcon = makeIcon(Avatar, "lucide:user", 16, Theme.SubText, "?", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Visible = false,
+		})
+		local NameLabel = create("TextLabel", {
+			Position = UDim2.fromOffset(44, 6),
+			Size = UDim2.new(1, -50, 0, 16),
+			TextSize = 11,
+			Weight = "Bold",
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Parent = Profile,
+		})
+		local HandleLabel = create("TextLabel", {
+			Position = UDim2.fromOffset(44, 22),
+			Size = UDim2.new(1, -50, 0, 14),
+			TextSize = 10,
+			Weight = "Regular",
+			TextColor3 = Theme.SubText,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Parent = Profile,
+		})
+
+		local thumb = nil
+		local function applyUser()
+			NameLabel.Text = anonymous and "Anonymous" or LocalPlayer.DisplayName
+			HandleLabel.Text = anonymous and "@hidden" or ("@" .. LocalPlayer.Name)
+			Avatar.Image = (not anonymous and thumb) or ""
+			if AvatarIcon then
+				AvatarIcon.Visible = anonymous or thumb == nil
+			end
 		end
-	end)
+		function Window:SetAnonymous(state)
+			anonymous = state == true
+			applyUser()
+		end
+		applyUser()
+
+		Profile.MouseEnter:Connect(function()
+			tween(Profile, { BackgroundTransparency = 0.8 }, EASE.Fast)
+		end)
+		Profile.MouseLeave:Connect(function()
+			tween(Profile, { BackgroundTransparency = 0.88 }, EASE.Fast)
+		end)
+		Profile.MouseButton1Click:Connect(function()
+			safe(userCfg.Callback)
+		end)
+
+		task.spawn(function()
+			local ok, img = pcall(function()
+				return Players:GetUserThumbnailAsync(
+					LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+			end)
+			if ok then
+				thumb = img
+				applyUser()
+			end
+		end)
+	else
+		function Window:SetAnonymous() end
+	end
 
 	local Content = create("Frame", {
 		Position = UDim2.fromOffset(sideW + 1, 0),
@@ -2017,6 +2533,10 @@ function Library:CreateWindow(cfg)
 		Library:Notify(opts)
 	end
 
+	function Window:SetAccent(a, b)
+		Library:SetAccent(a, b)
+	end
+
 	MinBtn.MouseButton1Click:Connect(function()
 		Window:Minimize()
 	end)
@@ -2065,6 +2585,7 @@ function Library:CreateWindow(cfg)
 			Name = name,
 			Size = UDim2.new(1, 0, 0, 36),
 			BackgroundColor3 = Theme.Accent,
+			Accent = "BackgroundColor3",
 			BackgroundTransparency = 1,
 			LayoutOrder = #self.Tabs + 1,
 			Parent = self._TabList,
@@ -2075,6 +2596,7 @@ function Library:CreateWindow(cfg)
 			Position = UDim2.new(0, 0, 0.5, 0),
 			Size = UDim2.fromOffset(3, 0),
 			BackgroundColor3 = Theme.Accent,
+			Accent = "BackgroundColor3",
 			Parent = Btn,
 		})
 		corner(Bar, 3)
@@ -2100,6 +2622,12 @@ function Library:CreateWindow(cfg)
 				tween(Icon, { BackgroundColor3 = c }, EASE.Smooth)
 			end
 		end
+
+		bindAccent(function(c)
+			if self._active == Tab then
+				iconColor(c)
+			end
+		end)
 
 		local Label = create("TextLabel", {
 			Position = UDim2.fromOffset(40, 0),
@@ -2135,6 +2663,7 @@ function Library:CreateWindow(cfg)
 			})
 			if hi then
 				hx = 34
+				accentIcon(hi)
 			end
 		end
 		create("TextLabel", {
@@ -2161,12 +2690,13 @@ function Library:CreateWindow(cfg)
 			BackgroundTransparency = 1,
 			ScrollBarThickness = 3,
 			ScrollBarImageColor3 = Theme.Accent,
+			Accent = "ScrollBarImageColor3",
 			CanvasSize = UDim2.new(),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			ScrollingDirection = Enum.ScrollingDirection.Y,
 			Parent = Page,
 		})
-		padding(Scroll, 0, 0, 8, 6)
+		padding(Scroll, 1, 1, 8, 6)
 		listLayout(Scroll, 10)
 		Tab._parent = Scroll
 
