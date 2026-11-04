@@ -1,24 +1,4 @@
---[[
-	╔═══════════════════════════════════════════════╗
-	║  NebulaUI  •  Roblox Luau UI Library  v1.3    ║
-	║  iOS Glass • Frosted Blur • Smooth Animations ║
-	╚═══════════════════════════════════════════════╝
 
-	Fitur:
-	  Window (drag, minimize, close, toggle key, tombol mengambang di mobile)
-	  Tab dengan transisi halus + Section (card)
-	  Button (ripple), Toggle, Slider, Dropdown (single/multi),
-	  TextBox, Keybind, ColorPicker (HSV + Transparency + Locked),
-	  Paragraph (judul berwarna, gambar, thumbnail, tombol), ProgressBar
-	  (determinate / indeterminate), Label
-	  User Anonymous / Hide User di profil sidebar
-	  Notifikasi iOS Glass (ikon + progress bar + spring)
-	  Counter FPS / PING (Library:CreateStats)
-	  Icon pack otomatis: lucide / craft / geist / solar
-	  Flags + Save/Load Config (jika executor mendukung writefile)
-
-	Pemakaian: lihat NebulaUI_Example.lua
-]]
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -47,10 +27,10 @@ for libName, libUrl in pairs(iconSources) do
 	Icons[libName] = ok and result or {}
 end
 
--- Menerima "lucide:home", "home" (cari di semua pack), atau rbxassetid/http
+-- Menerima "lucide:home", "home" (cari di semua pack), atau rbxassetid/http/rbxthumb
 local function resolveIcon(str)
 	if not str or str == "" then return "" end
-	if string.find(str, "rbxassetid") or string.find(str, "http") then return str end
+	if string.find(str, "rbx") or string.find(str, "http") then return str end
 	local lib, name = str:match("^(.-)%:(.+)$")
 	if lib and name and Icons[lib] then
 		return Icons[lib][name] or ""
@@ -59,20 +39,6 @@ local function resolveIcon(str)
 		if pack[str] then return pack[str] end
 	end
 	return ""
-end
-
--- Ikon gembok kecil di pojok kanan atas elemen yang Locked
-local function addLock(parent)
-	return create("ImageLabel", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -8, 0, 8),
-		Size = UDim2.fromOffset(14, 14),
-		Image = resolveIcon("lucide:lock"),
-		ImageColor3 = Theme.SubText,
-		BackgroundTransparency = 1,
-		ZIndex = 5,
-		Parent = parent,
-	})
 end
 
 local Library = {
@@ -268,6 +234,21 @@ local function ripple(frame, input)
 	task.delay(0.65, function()
 		dot:Destroy()
 	end)
+end
+
+-- Ikon gembok kecil di pojok kanan atas elemen yang Locked
+-- (harus berada SETELAH create & Theme didefinisikan)
+local function addLock(parent)
+	return create("ImageLabel", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -8, 0, 8),
+		Size = UDim2.fromOffset(14, 14),
+		Image = resolveIcon("lucide:lock"),
+		ImageColor3 = Theme.SubText,
+		BackgroundTransparency = 1,
+		ZIndex = 5,
+		Parent = parent,
+	})
 end
 
 ----------------------------------------------------------------------
@@ -478,7 +459,7 @@ function Library:Notify(cfg)
 end
 
 ----------------------------------------------------------------------
--- STATS (FPS / PING) — pill counter ala referensi
+-- STATS (FPS / PING) — pill counter
 ----------------------------------------------------------------------
 function Library:CreateStats(opts)
 	opts = opts or {}
@@ -553,7 +534,7 @@ function Library:CreateStats(opts)
 	end
 
 	local accum, frames = 0, 0
-	RunService.Heartbeat:Connect(function(dt)
+	local hb = RunService.Heartbeat:Connect(function(dt)
 		frames += 1
 		accum += dt
 		if accum >= 0.5 then
@@ -577,11 +558,13 @@ function Library:CreateStats(opts)
 		gui.Enabled = state == true
 	end
 	function obj:Destroy()
+		hb:Disconnect()
 		gui:Destroy()
 	end
 	return obj
 end
 
+----------------------------------------------------------------------
 -- ELEMENTS (dipakai oleh Tab & Section)
 ----------------------------------------------------------------------
 local Elements = {}
@@ -992,6 +975,7 @@ function Elements:CreateProgressBar(cfg)
 			end)
 		else
 			Grad.Transparency = NumberSequence.new(0)
+			Grad.Offset = Vector2.new(0, 0)
 		end
 	end
 
@@ -1106,7 +1090,6 @@ function Elements:CreateToggle(cfg)
 			animate and EASE.Smooth or EASE.Instant)
 		tween(Knob, {
 			Position = value and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
-			BackgroundColor3 = value and Color3.new(1, 1, 1) or Color3.new(1, 1, 1),
 		}, info)
 		tween(Glow, { Transparency = value and 0.55 or 1 }, EASE.Smooth)
 	end
@@ -1766,6 +1749,7 @@ function Elements:CreateColorPicker(cfg)
 	return obj
 end
 
+----------------------------------------------------------------------
 -- WINDOW
 ----------------------------------------------------------------------
 local WindowClass = {}
