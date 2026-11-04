@@ -1,3 +1,16 @@
+--[[
+	╔═══════════════════════════════════════════════╗
+	║  NebulaUI  •  Roblox Luau UI Library  v2.2    ║
+	║  iOS Glass • Icons • Sections • Sub-tabs      ║
+	╚═══════════════════════════════════════════════╝
+
+	Icon: tulis "pack:nama", contoh "lucide:bot", "solar:home-bold", "geist:...", "craft:..."
+	      (atau langsung "rbxassetid://ID"). Pack di-load sekali saat pertama dipakai.
+
+	Struktur:
+	  Window → Tab → Section (card, bisa collapse) → SubTab (pill) → Elemen
+]]
+
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -10,7 +23,7 @@ local LocalPlayer = Players.LocalPlayer
 local Library = {
 	Flags = {},
 	Items = {},
-	Version = "2.1.1",
+	Version = "2.2.0",
 	_nid = 0,
 }
 
@@ -586,21 +599,7 @@ function Library:_notify(cfg)
 		})
 	end
 
-	local Bar = create("Frame", {
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 16, 1, -8),
-		Size = UDim2.new(1, -32, 0, 3),
-		BackgroundColor3 = accent,
-		BackgroundTransparency = 0.25,
-		Parent = Card,
-	})
-	corner(Bar, 999)
-
 	local closed = false
-	local Click = create("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 5, Parent = Card })
-	Click.MouseButton1Click:Connect(function()
-		closed = true
-	end)
 
 	task.spawn(function()
 		task.wait(0.05)
@@ -610,6 +609,22 @@ function Library:_notify(cfg)
 			tries += 1
 		end
 		local h = Card.AbsoluteSize.Y
+		-- kunci tinggi kartu, baru pasang progress bar & overlay klik
+		Card.AutomaticSize = Enum.AutomaticSize.None
+		Card.Size = UDim2.new(1, 0, 0, h)
+		local Bar = create("Frame", {
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.new(0, 16, 1, -8),
+			Size = UDim2.new(1, -32, 0, 3),
+			BackgroundColor3 = accent,
+			BackgroundTransparency = 0.25,
+			Parent = Card,
+		})
+		corner(Bar, 999)
+		local Click = create("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 5, Parent = Card })
+		Click.MouseButton1Click:Connect(function()
+			closed = true
+		end)
 		tween(Wrap, { Size = UDim2.new(1, 0, 0, h + 10) }, EASE.Smooth)
 		task.wait(0.1)
 		tween(Card, { Position = UDim2.new(0, 0, 0, 0) }, EASE.Spring)
@@ -646,13 +661,22 @@ end
 ]]
 local stackOf = setmetatable({}, { __mode = "k" })
 
+-- Samakan tinggi `frame` dengan tinggi `source` (dipakai agar overlay berukuran skala
+-- tidak pernah berada di dalam frame AutomaticSize -> kartu tidak bisa "nyangkut" membesar)
+local function bindHeight(frame, source)
+	local function update()
+		frame.Size = UDim2.new(1, 0, 0, source.AbsoluteSize.Y)
+	end
+	source:GetPropertyChangedSignal("AbsoluteSize"):Connect(update)
+	update()
+end
+
 local function makeCard(self, cfg, tint)
 	local baseT = tint and 0.8 or Theme.ElementAlpha
 	local hoverT = tint and 0.7 or Theme.ElementHoverAlpha
 	local F = create("Frame", {
 		Name = cfg.Name or "Element",
 		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = tint or Theme.Element,
 		BackgroundTransparency = baseT,
 		ClipsDescendants = true,
@@ -681,6 +705,7 @@ local function makeCard(self, cfg, tint)
 		Parent = F,
 	})
 	rippleLayers[F] = RippleLayer
+	bindHeight(F, Stack)
 
 	-- Locked overlay
 	local Lock = create("TextButton", {
@@ -1443,7 +1468,8 @@ function Elements:CreateDropdown(cfg)
 		end
 	end
 
-	local Click = create("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 3, Parent = Top })
+	local Click = create("TextButton", { Size = UDim2.new(1, 0, 0, 0), ZIndex = 3, Parent = F })
+	bindHeight(Click, Top)
 	Click.MouseButton1Click:Connect(function()
 		setOpen(not open)
 	end)
@@ -1791,7 +1817,8 @@ function Elements:CreateColorPicker(cfg)
 		end)
 	end
 
-	local Click = create("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 4, Parent = Top })
+	local Click = create("TextButton", { Size = UDim2.new(1, 0, 0, 0), ZIndex = 4, Parent = F })
+	bindHeight(Click, Top)
 	Click.MouseButton1Click:Connect(function()
 		open = not open
 		tween(Extra, { Size = UDim2.new(1, 0, 0, open and EXTRA_H or 0) }, EASE.Smooth)
@@ -2319,7 +2346,7 @@ function Library:CreateWindow(cfg)
 		TweenInfo.new(2.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true))
 
 	-- Body
-	local Body = create("Frame", {
+	local Body = create("CanvasGroup", {
 		Name = "Body",
 		Position = UDim2.fromOffset(0, TOP_H + 1),
 		Size = UDim2.new(1, 0, 0, H - (TOP_H + 1)),
@@ -2522,20 +2549,22 @@ function Library:CreateWindow(cfg)
 		local dh = newH - self._curH
 		self._curH = newH
 		local p = Main.Position
-		if not self._minimized then
+		if self._minimized then
+			-- isi window memudar cepat lalu disembunyikan total
+			tween(Body, { GroupTransparency = 1 }, EASE.Fast)
+			task.delay(0.15, function()
+				if self._minimized then
+					Body.Visible = false
+				end
+			end)
+		else
 			Body.Visible = true
+			tween(Body, { GroupTransparency = 0 }, EASE.Smooth)
 		end
 		tween(Main, {
 			Size = UDim2.fromOffset(W, newH),
 			Position = UDim2.new(p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset + dh / 2),
 		}, EASE.Smooth)
-		if self._minimized then
-			task.delay(0.28, function()
-				if self._minimized then
-					Body.Visible = false
-				end
-			end)
-		end
 	end
 
 	function Window:Destroy()
