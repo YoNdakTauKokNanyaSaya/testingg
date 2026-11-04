@@ -10,7 +10,7 @@ local LocalPlayer = Players.LocalPlayer
 local Library = {
 	Flags = {},
 	Items = {},
-	Version = "2.1.0",
+	Version = "2.1.1",
 	_nid = 0,
 }
 
@@ -214,8 +214,11 @@ local function mountGui(gui)
 	end
 end
 
+local rippleLayers = setmetatable({}, { __mode = "k" })
+
 local function ripple(frame, input)
-	local p = Vector2.new(input.Position.X, input.Position.Y) - frame.AbsolutePosition
+	local layer = rippleLayers[frame] or frame
+	local p = Vector2.new(input.Position.X, input.Position.Y) - layer.AbsolutePosition
 	local dot = create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromOffset(p.X, p.Y),
@@ -223,10 +226,10 @@ local function ripple(frame, input)
 		BackgroundColor3 = Theme.Accent,
 		BackgroundTransparency = 0.72,
 		ZIndex = 2,
-		Parent = frame,
+		Parent = layer,
 	})
 	corner(dot, 999)
-	local d = math.max(frame.AbsoluteSize.X, frame.AbsoluteSize.Y) * 2.2
+	local d = math.max(layer.AbsoluteSize.X, layer.AbsoluteSize.Y, 1) * 2.2
 	tween(dot, {
 		Size = UDim2.fromOffset(d, d),
 		BackgroundTransparency = 1,
@@ -668,6 +671,17 @@ local function makeCard(self, cfg, tint)
 	listLayout(Stack, 0)
 	stackOf[F] = Stack
 
+	-- Lapisan ripple: scale-size + clip, jadi efek klik tidak memperbesar kartu
+	local RippleLayer = create("Frame", {
+		Name = "Ripple",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		ZIndex = 2,
+		Parent = F,
+	})
+	rippleLayers[F] = RippleLayer
+
 	-- Locked overlay
 	local Lock = create("TextButton", {
 		Name = "Lock",
@@ -726,7 +740,9 @@ local function baseElement(self, cfg, rightWidth, minH)
 		Parent = Top,
 	})
 	padding(Text, 14, 12, 8, 12)
-	listLayout(Text, 4)
+	local tl = listLayout(Text, 4)
+	tl.VerticalAlignment = Enum.VerticalAlignment.Center
+	create("UISizeConstraint", { MinSize = Vector2.new(0, minH or 52), Parent = Text })
 
 	local Title = create("TextLabel", {
 		Name = "Title",
@@ -1144,11 +1160,19 @@ function Elements:CreateToggle(cfg)
 		obj:Set(not value)
 	end)
 	Click.MouseButton1Down:Connect(function()
-		tween(Knob, { Size = UDim2.fromOffset(22, 18) }, EASE.Fast)
+		tween(Knob, {
+			Size = UDim2.fromOffset(22, 18),
+			Position = value and UDim2.new(1, -25, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
+		}, EASE.Fast)
 	end)
-	Click.MouseButton1Up:Connect(function()
-		tween(Knob, { Size = UDim2.fromOffset(18, 18) }, EASE.Fast)
-	end)
+	local function release()
+		tween(Knob, {
+			Size = UDim2.fromOffset(18, 18),
+			Position = value and UDim2.new(1, -21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
+		}, EASE.Fast)
+	end
+	Click.MouseButton1Up:Connect(release)
+	Click.MouseLeave:Connect(release)
 
 	register(cfg.Flag, obj, value)
 	render(false)
@@ -2298,7 +2322,7 @@ function Library:CreateWindow(cfg)
 	local Body = create("Frame", {
 		Name = "Body",
 		Position = UDim2.fromOffset(0, TOP_H + 1),
-		Size = UDim2.new(1, 0, 1, -(TOP_H + 1)),
+		Size = UDim2.new(1, 0, 0, H - (TOP_H + 1)),
 		BackgroundTransparency = 1,
 		Parent = Main,
 	})
@@ -2438,7 +2462,7 @@ function Library:CreateWindow(cfg)
 			TextColor3 = Theme.SubText,
 			TextXAlignment = Enum.TextXAlignment.Right,
 			ZIndex = 5,
-			Parent = Main,
+			Parent = Body,
 		})
 	end
 
