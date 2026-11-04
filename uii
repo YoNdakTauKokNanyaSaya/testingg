@@ -1,6 +1,6 @@
 --[[
 	╔═══════════════════════════════════════════════╗
-	║  NebulaUI  •  Roblox Luau UI Library  v2.2    ║
+	║  NebulaUI  •  Roblox Luau UI Library  v2.3    ║
 	║  iOS Glass • Icons • Sections • Sub-tabs      ║
 	╚═══════════════════════════════════════════════╝
 
@@ -23,7 +23,7 @@ local LocalPlayer = Players.LocalPlayer
 local Library = {
 	Flags = {},
 	Items = {},
-	Version = "2.2.0",
+	Version = "2.3.0",
 	_nid = 0,
 }
 
@@ -229,27 +229,15 @@ end
 
 local rippleLayers = setmetatable({}, { __mode = "k" })
 
-local function ripple(frame, input)
-	local layer = rippleLayers[frame] or frame
-	local p = Vector2.new(input.Position.X, input.Position.Y) - layer.AbsolutePosition
-	local dot = create("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromOffset(p.X, p.Y),
-		Size = UDim2.fromOffset(0, 0),
-		BackgroundColor3 = Theme.Accent,
-		BackgroundTransparency = 0.72,
-		ZIndex = 2,
-		Parent = layer,
-	})
-	corner(dot, 999)
-	local d = math.max(layer.AbsoluteSize.X, layer.AbsoluteSize.Y, 1) * 2.2
-	tween(dot, {
-		Size = UDim2.fromOffset(d, d),
-		BackgroundTransparency = 1,
-	}, TweenInfo.new(0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.Out))
-	task.delay(0.65, function()
-		dot:Destroy()
-	end)
+local function ripple(frame, _input)
+	-- Umpan balik klik berupa kilatan warna pada lapisan yang ukurannya tetap 100% kartu.
+	-- Tidak membuat objek baru dan tidak mengubah ukuran apa pun.
+	local flash = rippleLayers[frame]
+	if not flash then
+		return
+	end
+	flash.BackgroundTransparency = 0.72
+	tween(flash, { BackgroundTransparency = 1 }, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out))
 end
 
 ----------------------------------------------------------------------
@@ -695,16 +683,18 @@ local function makeCard(self, cfg, tint)
 	listLayout(Stack, 0)
 	stackOf[F] = Stack
 
-	-- Lapisan ripple: scale-size + clip, jadi efek klik tidak memperbesar kartu
-	local RippleLayer = create("Frame", {
-		Name = "Ripple",
+	-- Lapisan kilat klik (ukuran tetap = ukuran kartu, tidak pernah menambah ukuran)
+	local Flash = create("Frame", {
+		Name = "Flash",
 		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Theme.Accent,
+		Accent = "BackgroundColor3",
 		BackgroundTransparency = 1,
-		ClipsDescendants = true,
 		ZIndex = 2,
 		Parent = F,
 	})
-	rippleLayers[F] = RippleLayer
+	corner(Flash, 14)
+	rippleLayers[F] = Flash
 	bindHeight(F, Stack)
 
 	-- Locked overlay
