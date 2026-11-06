@@ -1,15 +1,4 @@
---[[
-	╔═══════════════════════════════════════════════╗
-	║  NebulaUI  •  Roblox Luau UI Library  v2.5.1  ║
-	║  iOS Glass • Icons • Sections • Sub-tabs      ║
-	╚═══════════════════════════════════════════════╝
 
-	Icon: tulis "pack:nama", contoh "lucide:bot", "solar:home-bold", "geist:...", "craft:..."
-	      (atau langsung "rbxassetid://ID"). Pack di-load sekali saat pertama dipakai.
-
-	Struktur:
-	  Window → Tab → Section (card, bisa collapse) → SubTab (pill) → Elemen
-]]
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -24,7 +13,7 @@ local LocalPlayer = Players.LocalPlayer
 local Library = {
 	Flags = {},
 	Items = {},
-	Version = "2.5.1",
+	Version = "2.5.3",
 	_nid = 0,
 }
 
@@ -33,7 +22,9 @@ local Library = {
 ----------------------------------------------------------------------
 local Theme = {
 	Glass = Color3.fromRGB(26, 28, 44),
-	GlassAlpha = 0.5,
+	GlassAlpha = 0.28,                      -- 0 = solid, 1 = transparan (bisa diubah: CreateWindow({ GlassAlpha = 0.2 }))
+	GlassTop = Color3.fromRGB(86, 94, 142),
+	GlassBottom = Color3.fromRGB(24, 27, 48),
 	Surface = Color3.fromRGB(255, 255, 255),
 	SurfaceAlpha = 0.92,
 	Element = Color3.fromRGB(255, 255, 255),
@@ -45,7 +36,7 @@ local Theme = {
 	Accent = Color3.fromRGB(10, 132, 255),
 	Accent2 = Color3.fromRGB(100, 210, 255),
 	Text = Color3.fromRGB(255, 255, 255),
-	SubText = Color3.fromRGB(184, 186, 204),
+	SubText = Color3.fromRGB(226, 228, 242),
 	Success = Color3.fromRGB(48, 209, 88),
 	Warning = Color3.fromRGB(255, 214, 10),
 	Danger = Color3.fromRGB(255, 69, 58),
@@ -63,10 +54,11 @@ local function resolveFamily(kind)
 	return ok and fam or "rbxasset://fonts/families/GothamSSm.json"
 end
 local FamilyAsset = resolveFamily("Mono")
+-- Bobot huruf dinaikkan satu tingkat agar tulisan lebih tebal & terbaca di atas latar terang
 local WEIGHT = {
-	Regular = Enum.FontWeight.Regular,
-	Medium = Enum.FontWeight.Medium,
-	SemiBold = Enum.FontWeight.SemiBold,
+	Regular = Enum.FontWeight.Medium,
+	Medium = Enum.FontWeight.SemiBold,
+	SemiBold = Enum.FontWeight.Bold,
 	Bold = Enum.FontWeight.Bold,
 	Heavy = Enum.FontWeight.Heavy,
 }
@@ -122,6 +114,9 @@ local function create(class, props, children)
 		inst.FontFace = Font.new(FamilyAsset, WEIGHT.Medium)
 		inst.TextColor3 = Theme.Text
 		inst.TextSize = 13
+		-- outline tipis gelap supaya huruf tetap terbaca di atas background terang/ramai
+		inst.TextStrokeColor3 = Color3.new(0, 0, 0)
+		inst.TextStrokeTransparency = 0.62
 	end
 	if inst:IsA("TextLabel") or inst:IsA("TextButton") then
 		inst.Text = ""
@@ -2608,6 +2603,7 @@ function Elements:CreateCode(cfg)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		TextWrapped = false,
+		TextStrokeTransparency = 1,
 		Parent = Box,
 	})
 	Label.FontFace = Font.new(resolveFamily("Mono"), WEIGHT.Regular)
@@ -2792,7 +2788,7 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 	corner(Root, 24)
 	create("UIGradient", {
 		Rotation = 135,
-		Color = ColorSequence.new(Color3.fromRGB(150, 162, 220), Color3.fromRGB(66, 72, 116)),
+		Color = ColorSequence.new(Theme.GlassTop, Theme.GlassBottom),
 		Parent = Root,
 	})
 	local rim = stroke(Root, Color3.new(1, 1, 1), 1.2, 0)
@@ -3106,7 +3102,7 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 				if not Window._visible then
 					Window:SetVisible(true)
 				elseif Window._minimized then
-					Window:Minimize()
+					Window:Collapse()
 				end
 			end,
 		}, 100 + tabCount)
@@ -3145,6 +3141,9 @@ function Library:CreateWindow(cfg)
 		Theme.Accent2 = cfg.Accent2
 	end
 	FamilyAsset = resolveFamily(cfg.Font or "Mono")
+	if type(cfg.GlassAlpha) == "number" then
+		Theme.GlassAlpha = math.clamp(cfg.GlassAlpha, 0, 1)
+	end
 	local TOP_H = (cfg.Topbar and tonumber(cfg.Topbar.Height)) or 46
 	local macStyle = cfg.Topbar ~= nil and cfg.Topbar.ButtonsType == "Mac"
 	if cfg.Folder then
@@ -3199,7 +3198,7 @@ function Library:CreateWindow(cfg)
 	})
 	create("UIGradient", {
 		Rotation = 135,
-		Color = ColorSequence.new(Color3.fromRGB(150, 162, 220), Color3.fromRGB(66, 72, 116)),
+		Color = ColorSequence.new(Theme.GlassTop, Theme.GlassBottom),
 		Parent = GlassBase,
 	})
 	local Sheen = create("Frame", {
@@ -3212,8 +3211,8 @@ function Library:CreateWindow(cfg)
 	create("UIGradient", {
 		Rotation = 115,
 		Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.82),
-			NumberSequenceKeypoint.new(0.4, 0.95),
+			NumberSequenceKeypoint.new(0, 0.9),
+			NumberSequenceKeypoint.new(0.4, 0.97),
 			NumberSequenceKeypoint.new(1, 0.99),
 		}),
 		Parent = Sheen,
@@ -3426,6 +3425,7 @@ function Library:CreateWindow(cfg)
 			TextSize = 10,
 			Weight = "Bold",
 			TextColor3 = fg,
+			TextStrokeTransparency = (solid and luma(bg) > 0.62) and 1 or 0.62,
 			LayoutOrder = 2,
 			Parent = Pill,
 		})
@@ -3715,7 +3715,21 @@ function Library:CreateWindow(cfg)
 		self:SetVisible(not self._visible)
 	end
 
+	-- Minimize (tombol kuning, tombol di panel, atau kode): sembunyikan ke OpenButton/Dock.
+	-- Panggil lagi (atau klik OpenButton / ikon Dock) untuk menampilkan kembali.
+	-- Topbar = { MinimizeMode = "Collapse" } -> pakai gaya lama (window melipat jadi top bar).
 	function Window:Minimize()
+		local mode = cfg.Topbar and cfg.Topbar.MinimizeMode
+		local canRestore = self._setOpenBtn ~= nil or self.Dock ~= nil
+		if mode ~= "Collapse" and canRestore and not self._minimized then
+			self:SetVisible(not self._visible)
+			return
+		end
+		self:Collapse()
+	end
+
+	-- Lipat window jadi top bar saja (gaya lama)
+	function Window:Collapse()
 		self._minimized = not self._minimized
 		self:_setBlur(not self._minimized)
 		local newH = self._minimized and TOP_H + 1 or H
@@ -3755,6 +3769,11 @@ function Library:CreateWindow(cfg)
 		end)
 	end
 
+	function Window:SetGlassAlpha(a)
+		Theme.GlassAlpha = math.clamp(tonumber(a) or Theme.GlassAlpha, 0, 1)
+		tween(GlassBase, { BackgroundTransparency = Theme.GlassAlpha }, EASE.Smooth)
+	end
+
 	function Window:Notify(opts)
 		Library:Notify(opts)
 	end
@@ -3783,16 +3802,8 @@ function Library:CreateWindow(cfg)
 		tween(Main, { Size = UDim2.fromOffset(W, H), Position = UDim2.fromScale(0.5, 0.5) }, EASE.Smooth)
 	end
 
-	-- Minimize: sembunyikan window ke OpenButton / Dock (default).
-	-- Topbar = { MinimizeMode = "Collapse" } untuk gaya lama (window melipat jadi top bar saja).
 	MinBtn.MouseButton1Click:Connect(function()
-		local mode = cfg.Topbar and cfg.Topbar.MinimizeMode
-		local canRestore = Window._setOpenBtn ~= nil or Window.Dock ~= nil
-		if mode ~= "Collapse" and canRestore and not Window._minimized then
-			Window:SetVisible(false)
-		else
-			Window:Minimize()
-		end
+		Window:Minimize()
 	end)
 	CloseBtn.MouseButton1Click:Connect(function()
 		if cfg.Topbar and cfg.Topbar.HideOnClose then
@@ -3860,6 +3871,7 @@ function Library:CreateWindow(cfg)
 			TextSize = 13,
 			Weight = "Bold",
 			TextColor3 = fg,
+			TextStrokeTransparency = luma(fg) < 0.5 and 1 or 0.62,
 			LayoutOrder = 2,
 			Parent = OpenBtn,
 		})
