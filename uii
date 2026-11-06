@@ -3770,8 +3770,16 @@ function Library:CreateWindow(cfg)
 		tween(Main, { Size = UDim2.fromOffset(W, H), Position = UDim2.fromScale(0.5, 0.5) }, EASE.Smooth)
 	end
 
+	-- Minimize: sembunyikan window ke OpenButton / Dock (default).
+	-- Topbar = { MinimizeMode = "Collapse" } untuk gaya lama (window melipat jadi top bar saja).
 	MinBtn.MouseButton1Click:Connect(function()
-		Window:Minimize()
+		local mode = cfg.Topbar and cfg.Topbar.MinimizeMode
+		local canRestore = Window._setOpenBtn ~= nil or Window.Dock ~= nil
+		if mode ~= "Collapse" and canRestore and not Window._minimized then
+			Window:SetVisible(false)
+		else
+			Window:Minimize()
+		end
 	end)
 	CloseBtn.MouseButton1Click:Connect(function()
 		if cfg.Topbar and cfg.Topbar.HideOnClose then
