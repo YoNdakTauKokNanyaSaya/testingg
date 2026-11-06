@@ -11,7 +11,7 @@ local LocalPlayer = Players.LocalPlayer
 local Library = {
 	Flags = {},
 	Items = {},
-	Version = "2.5.0",
+	Version = "2.5.1",
 	_nid = 0,
 }
 
