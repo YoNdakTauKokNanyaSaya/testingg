@@ -1,6 +1,6 @@
 --[[
 	╔═══════════════════════════════════════════════╗
-	║  NebulaUI  •  Roblox Luau UI Library  v2.5.3  ║
+	║  NebulaUI  •  Roblox Luau UI Library  v2.5.4  ║
 	║  iOS Glass • Icons • Sections • Sub-tabs      ║
 	╚═══════════════════════════════════════════════╝
 
@@ -24,7 +24,7 @@ local LocalPlayer = Players.LocalPlayer
 local Library = {
 	Flags = {},
 	Items = {},
-	Version = "2.5.3",
+	Version = "2.5.4",
 	_nid = 0,
 }
 
@@ -778,7 +778,13 @@ local function makeCard(self, cfg, tint)
 		Position = UDim2.new(1, -14, 0.5, 0),
 		ZIndex = 21,
 	})
-	local function setLocked(state)
+	-- Boleh dipanggil obj.SetLocked(true) maupun obj:SetLocked(true)
+	-- (dengan titik dua, argumen pertama adalah obj itu sendiri, bukan state)
+	local function setLocked(a, b)
+		local state = a
+		if type(a) == "table" then
+			state = b
+		end
 		Lock.Visible = state == true
 	end
 	setLocked(cfg.Locked)
@@ -1243,7 +1249,12 @@ function Elements:CreateButton(cfg)
 	end)
 
 	local obj = {}
-	local function setLocked(state)
+	local function setLocked(a, b)
+		local state = a
+		if type(a) == "table" then
+			state = b
+		end
+		state = state == true
 		setLockedRaw(state)
 		if cfg.LockedTitle then
 			Title.Text = state and cfg.LockedTitle or normalTitle
