@@ -4,13 +4,14 @@ local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
 local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
 
 local Library = {
 	Flags = {},
 	Items = {},
-	Version = "2.4.0",
+	Version = "2.5.0",
 	_nid = 0,
 }
 
@@ -786,7 +787,7 @@ local function baseElement(self, cfg, rightWidth, minH)
 		end
 	end
 
-	local F, Stack, st, setLocked = makeCard(self, cfg)
+	local F, Stack, st, setLocked = makeCard(self, cfg, cfg.CardColor)
 
 	local Top = create("Frame", {
 		Name = "Top",
@@ -852,6 +853,31 @@ local function makeExtra(F, height)
 		LayoutOrder = 2,
 		Parent = stackOf[F],
 	})
+end
+
+-- Ikon di sisi kartu (kiri/kanan) + geser teks agar tidak menimpa ikon
+local function leadIcon(Top, icon, color, side, symmetric)
+	if not icon then
+		return nil
+	end
+	side = side or "Left"
+	local ic = makeIcon(Top, icon, 18, color or Theme.SubText, nil, {
+		AnchorPoint = Vector2.new(side == "Right" and 1 or 0, 0.5),
+		Position = UDim2.new(side == "Right" and 1 or 0, side == "Right" and -14 or 14, 0.5, 0),
+	})
+	if ic then
+		local Text = Top:FindFirstChild("Text")
+		local pad = Text and Text:FindFirstChildOfClass("UIPadding")
+		if pad then
+			if side == "Left" or symmetric then
+				pad.PaddingLeft = UDim.new(0, 44)
+			end
+			if symmetric then
+				pad.PaddingRight = UDim.new(0, 44)
+			end
+		end
+	end
+	return ic
 end
 
 local function register(flag, obj, value)
@@ -1135,21 +1161,55 @@ function Elements:CreateLabel(text)
 end
 
 -- ───────────────────────── BUTTON ─────────────────────────
+--[[
+	Tab:Button({
+		Title, Desc, Icon, IconAlign = "Left"|"Right", IconColor = Color3,
+		Color = Color3 (warna kartu), Locked, LockedTitle, Justify = "Between"|"Center",
+		Flag, Callback
+	})
+]]
 function Elements:CreateButton(cfg)
 	cfg = cfg or {}
-	local F, Top, st, Title, setLocked = baseElement(self, cfg, 44)
+	local center = cfg.Justify == "Center"
+	local iconRight = cfg.IconAlign == "Right"
+	local hasIcon = cfg.Icon ~= nil
+	cfg.CardColor = typeof(cfg.Color) == "Color3" and cfg.Color or nil
 
-	create("TextLabel", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -14, 0.5, 0),
-		Size = UDim2.fromOffset(20, 24),
-		Text = "›",
-		TextSize = 22,
-		Weight = "Bold",
-		TextColor3 = Theme.Accent,
-		Accent = "TextColor3",
-		Parent = Top,
-	})
+	local rightW = center and 0 or ((hasIcon and not iconRight) and 14 or 44)
+	local F, Top, st, Title, setLockedRaw = baseElement(self, cfg, rightW)
+	local normalTitle = Title.Text
+	local TextFrame = Top:FindFirstChild("Text")
+
+	local ic
+	if hasIcon then
+		ic = leadIcon(Top, cfg.Icon, cfg.IconColor or Theme.Accent, iconRight and "Right" or "Left", center)
+	end
+	if center then
+		Title.TextXAlignment = Enum.TextXAlignment.Center
+		local Desc = TextFrame and TextFrame:FindFirstChild("Desc")
+		if Desc then
+			Desc.TextXAlignment = Enum.TextXAlignment.Center
+		end
+		if not ic then
+			local pad = TextFrame and TextFrame:FindFirstChildOfClass("UIPadding")
+			if pad then
+				pad.PaddingLeft = UDim.new(0, 14)
+				pad.PaddingRight = UDim.new(0, 14)
+			end
+		end
+	elseif not hasIcon then
+		create("TextLabel", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -14, 0.5, 0),
+			Size = UDim2.fromOffset(20, 24),
+			Text = "›",
+			TextSize = 22,
+			Weight = "Bold",
+			TextColor3 = Theme.Accent,
+			Accent = "TextColor3",
+			Parent = Top,
+		})
+	end
 
 	local Click = create("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 3, Parent = F })
 	Click.InputBegan:Connect(function(input)
@@ -1163,44 +1223,85 @@ function Elements:CreateButton(cfg)
 		safe(cfg.Callback)
 	end)
 
-	local obj = { SetLocked = setLocked }
+	local obj = {}
+	local function setLocked(state)
+		setLockedRaw(state)
+		if cfg.LockedTitle then
+			Title.Text = state and cfg.LockedTitle or normalTitle
+		end
+	end
+	obj.SetLocked = setLocked
+	if cfg.Locked then
+		setLocked(true)
+	end
 	function obj:SetText(t)
+		normalTitle = t
 		Title.Text = t
+	end
+	if cfg.Flag then
+		Library.Items[cfg.Flag] = obj
 	end
 	return obj
 end
 
 -- ───────────────────────── TOGGLE ─────────────────────────
+--[[
+	Tab:Toggle({ Title, Desc, Icon, Value = false, Type = "Toggle"|"Checkbox", Locked, Flag, Callback })
+]]
 function Elements:CreateToggle(cfg)
 	cfg = cfg or {}
-	local value = cfg.Default == true
-	local F, Top, st, Title, setLocked = baseElement(self, cfg, 70)
+	local value = cfg.Value == true or cfg.Default == true
+	local isBox = cfg.Type == "Checkbox"
+	local F, Top, st, Title, setLocked = baseElement(self, cfg, isBox and 52 or 70)
+	leadIcon(Top, cfg.Icon, cfg.IconColor)
 
-	local Track = create("Frame", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -14, 0.5, 0),
-		Size = UDim2.fromOffset(42, 24),
-		BackgroundColor3 = Theme.Track,
-		Parent = Top,
-	})
-	corner(Track, 999)
-	local Glow = accented(stroke(Track, Theme.Accent, 1.5, 1), "Color")
-
-	local Knob = create("Frame", {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 3, 0.5, 0),
-		Size = UDim2.fromOffset(18, 18),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		Parent = Track,
-	})
-	corner(Knob, 999)
+	local Track, Knob, Glow, Check
+	if isBox then
+		Track = create("Frame", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -14, 0.5, 0),
+			Size = UDim2.fromOffset(24, 24),
+			BackgroundColor3 = Theme.Track,
+			Parent = Top,
+		})
+		corner(Track, 8)
+		Glow = accented(stroke(Track, Theme.Accent, 1.5, 1), "Color")
+		Check = makeIcon(Track, "lucide:check", 16, Color3.new(1, 1, 1), "✓", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Visible = false,
+		})
+	else
+		Track = create("Frame", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -14, 0.5, 0),
+			Size = UDim2.fromOffset(42, 24),
+			BackgroundColor3 = Theme.Track,
+			Parent = Top,
+		})
+		corner(Track, 999)
+		Glow = accented(stroke(Track, Theme.Accent, 1.5, 1), "Color")
+		Knob = create("Frame", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 3, 0.5, 0),
+			Size = UDim2.fromOffset(18, 18),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			Parent = Track,
+		})
+		corner(Knob, 999)
+	end
 
 	local function render(animate)
 		tween(Track, { BackgroundColor3 = value and Theme.Accent or Theme.Track },
 			animate and EASE.Smooth or EASE.Instant)
-		tween(Knob, {
-			Position = value and UDim2.new(1, -21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
-		}, animate and EASE.Spring or EASE.Instant)
+		if Knob then
+			tween(Knob, {
+				Position = value and UDim2.new(1, -21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
+			}, animate and EASE.Spring or EASE.Instant)
+		end
+		if Check then
+			Check.Visible = value
+		end
 		tween(Glow, { Transparency = value and 0.55 or 1 }, EASE.Smooth)
 	end
 	bindAccent(function(c)
@@ -1228,20 +1329,22 @@ function Elements:CreateToggle(cfg)
 	Click.MouseButton1Click:Connect(function()
 		obj:Set(not value)
 	end)
-	Click.MouseButton1Down:Connect(function()
-		tween(Knob, {
-			Size = UDim2.fromOffset(22, 18),
-			Position = value and UDim2.new(1, -25, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
-		}, EASE.Fast)
-	end)
-	local function release()
-		tween(Knob, {
-			Size = UDim2.fromOffset(18, 18),
-			Position = value and UDim2.new(1, -21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
-		}, EASE.Fast)
+	if Knob then
+		Click.MouseButton1Down:Connect(function()
+			tween(Knob, {
+				Size = UDim2.fromOffset(22, 18),
+				Position = value and UDim2.new(1, -25, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
+			}, EASE.Fast)
+		end)
+		local function release()
+			tween(Knob, {
+				Size = UDim2.fromOffset(18, 18),
+				Position = value and UDim2.new(1, -21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
+			}, EASE.Fast)
+		end
+		Click.MouseButton1Up:Connect(release)
+		Click.MouseLeave:Connect(release)
 	end
-	Click.MouseButton1Up:Connect(release)
-	Click.MouseLeave:Connect(release)
 
 	register(cfg.Flag, obj, value)
 	render(false)
@@ -1251,12 +1354,19 @@ end
 -- ───────────────────────── SLIDER ─────────────────────────
 function Elements:CreateSlider(cfg)
 	cfg = cfg or {}
-	local min, max = cfg.Min or 0, cfg.Max or 100
-	local inc = cfg.Increment or 1
+	-- Value = { Min, Max, Default } (gaya baru) atau Min/Max/Default langsung (gaya lama)
+	local vt = type(cfg.Value) == "table" and cfg.Value or {}
+	local min, max = vt.Min or cfg.Min or 0, vt.Max or cfg.Max or 100
+	local inc = cfg.Step or cfg.Increment or 1
 	local suffix = cfg.Suffix or ""
-	local value = math.clamp(cfg.Default or min, min, max)
+	local start = vt.Default
+	if start == nil then
+		start = type(cfg.Value) == "number" and cfg.Value or cfg.Default
+	end
+	local value = math.clamp(start or min, min, max)
 
 	local F, Top, st, Title, setLocked = baseElement(self, cfg, 100)
+	leadIcon(Top, cfg.Icon, cfg.IconColor)
 	local ValueLabel = create("TextLabel", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -14, 0.5, 0),
@@ -1353,8 +1463,10 @@ function Elements:CreateDropdown(cfg)
 	local items = {}
 	local rows = {}
 	local created = {}
+	local actionMenu = false
 
 	local F, Top, _, _, setLocked = baseElement(self, cfg, 170)
+	leadIcon(Top, cfg.Icon, cfg.IconColor)
 
 	local Selected = create("TextLabel", {
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -1559,6 +1671,11 @@ function Elements:CreateDropdown(cfg)
 						else
 							table.insert(value, it.value)
 						end
+					elseif actionMenu then
+						setOpen(false)
+						safe(cfg.Callback, it.value)
+						safe(it.callback, it.value)
+						return
 					else
 						value = it.value
 						setOpen(false)
@@ -1603,6 +1720,20 @@ function Elements:CreateDropdown(cfg)
 	end)
 
 	normalize(cfg.Values or cfg.Options)
+	-- Menu aksi: semua item punya Callback & tidak ada Value awal -> klik langsung menjalankan aksi
+	if not multi and cfg.Value == nil and cfg.Default == nil then
+		local count = 0
+		actionMenu = true
+		for _, it in ipairs(items) do
+			if not it.divider then
+				count += 1
+				if not it.callback then
+					actionMenu = false
+				end
+			end
+		end
+		actionMenu = actionMenu and count > 0
+	end
 	build()
 	local default = cfg.Value
 	if default == nil then
@@ -1731,9 +1862,21 @@ end
 
 function Elements:CreateKeybind(cfg)
 	cfg = cfg or {}
-	local key = cfg.Default or Enum.KeyCode.Unknown
+	-- Value = "V" (nama tombol) atau Enum.KeyCode
+	local key = cfg.Value
+	if key == nil then
+		key = cfg.Default
+	end
+	if typeof(key) == "string" then
+		local okKey, kc = pcall(function()
+			return Enum.KeyCode[key]
+		end)
+		key = okKey and kc or nil
+	end
+	key = key or Enum.KeyCode.Unknown
 	local listening = false
 	local F, Top, st, Title, setLocked = baseElement(self, cfg, 80)
+	leadIcon(Top, cfg.Icon, cfg.IconColor)
 
 	local Btn = create("TextButton", {
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -1794,7 +1937,7 @@ function Elements:CreateKeybind(cfg)
 				end
 			end
 		elseif not gp and key ~= Enum.KeyCode.Unknown and input.KeyCode == key then
-			safe(cfg.Callback, key)
+			safe(cfg.Callback, key.Name)
 		end
 	end))
 
@@ -2593,6 +2736,391 @@ local function makeDraggable(window, handle, target)
 	end))
 end
 
+----------------------------------------------------------------------
+-- DOCK  (taskbar kaca gaya macOS: ikon membesar saat di-hover, tooltip, titik aktif, bounce)
+----------------------------------------------------------------------
+--[[
+	CreateWindow({ Dock = {
+		Enabled = true,
+		App = true,            -- ikon window (klik = tampil/sembunyi)
+		Tabs = true,           -- setiap tab otomatis jadi ikon dock
+		IconSize = 46,         -- ukuran ikon dasar
+		Magnify = 1.5,         -- skala maksimum saat di-hover (1 = tanpa efek)
+		Offset = 12,           -- jarak dari tepi bawah layar
+		Items = {
+			{ Title = "Discord", Icon = "message-circle", Color = Color3.fromHex("#5865F2"), Callback = function() end },
+			{ Type = "Divider" },
+			{ Title = "Settings", Icon = "settings", Active = false },
+		},
+	} })
+	Window.Dock:AddItem({...})  -> item { SetActive(bool), SetTitle(text), Destroy() }
+	Window.Dock:AddDivider()
+	Window.Dock:SetVisible(bool)
+]]
+local function createDock(Window, Gui, dcfg, appIcon, appTitle)
+	local touch = UserInputService.TouchEnabled
+	local base = dcfg.IconSize or (touch and 38 or 46)
+	local maxScale = touch and 1 or (dcfg.Magnify or 1.5)
+	local barH = base + 20
+	local range = base * 2.6
+	local offset = dcfg.Offset or 12
+
+	local Root = create("Frame", {
+		Name = "Dock",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -offset),
+		Size = UDim2.new(0, 0, 0, barH),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = Theme.GlassAlpha,
+		ZIndex = 40,
+		Parent = Gui,
+	})
+	corner(Root, 24)
+	create("UIGradient", {
+		Rotation = 135,
+		Color = ColorSequence.new(Color3.fromRGB(150, 162, 220), Color3.fromRGB(66, 72, 116)),
+		Parent = Root,
+	})
+	local rim = stroke(Root, Color3.new(1, 1, 1), 1.2, 0)
+	create("UIGradient", {
+		Rotation = 90,
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.45),
+			NumberSequenceKeypoint.new(0.5, 0.88),
+			NumberSequenceKeypoint.new(1, 0.7),
+		}),
+		Parent = rim,
+	})
+	padding(Root, 10, 0, 10, 0)
+	local rl = listLayout(Root, 2, true)
+	rl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+	local items = {}
+	local customOrder = 1000
+	local mouseX = 0
+	local rootHover = false
+
+	local function applySize(it)
+		local sz = base * it.cur
+		it.slot.Size = UDim2.fromOffset(sz + 6, barH)
+		it.btn.Size = UDim2.fromOffset(sz, sz)
+	end
+
+	local function remove(it)
+		for i, v in ipairs(items) do
+			if v == it then
+				table.remove(items, i)
+				break
+			end
+		end
+		it.slot:Destroy()
+	end
+
+	local function bounce(btn)
+		tween(btn, { Position = UDim2.new(0.5, 0, 1, -26) },
+			TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+		task.delay(0.16, function()
+			tween(btn, { Position = UDim2.new(0.5, 0, 1, -10) },
+				TweenInfo.new(0.34, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out))
+		end)
+	end
+
+	local function addItem(def, order)
+		def = def or {}
+		if not order then
+			customOrder += 1
+			order = customOrder
+		end
+
+		if def.Type == "Divider" then
+			local d = create("Frame", {
+				Size = UDim2.fromOffset(9, barH),
+				BackgroundTransparency = 1,
+				LayoutOrder = order,
+				Parent = Root,
+			})
+			create("Frame", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				Size = UDim2.new(0, 1, 0, base * 0.8),
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				BackgroundTransparency = 0.8,
+				Parent = d,
+			})
+			local it = { divider = true, slot = d }
+			table.insert(items, it)
+			return { Destroy = function() remove(it) end }
+		end
+
+		local title = tostring(def.Title or def.Name or "")
+		local solid = typeof(def.Color) == "Color3"
+		local accentTile = def.Accent == true
+
+		local slot = create("Frame", {
+			Size = UDim2.fromOffset(base + 6, barH),
+			BackgroundTransparency = 1,
+			LayoutOrder = order,
+			ZIndex = 1,
+			Parent = Root,
+		})
+		local btn = create("TextButton", {
+			Name = "Item",
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -10),
+			Size = UDim2.fromOffset(base, base),
+			BackgroundColor3 = solid and def.Color or (accentTile and Color3.new(1, 1, 1) or Theme.Surface),
+			BackgroundTransparency = (solid or accentTile) and 0 or 0.3,
+			Text = "",
+			Parent = slot,
+		})
+		create("UICorner", { CornerRadius = UDim.new(0.27, 0), Parent = btn })
+		stroke(btn, Color3.new(1, 1, 1), 1, 0.75)
+		if accentTile then
+			local g = create("UIGradient", {
+				Rotation = 45,
+				Color = ColorSequence.new(Theme.Accent, Theme.Accent2),
+				Parent = btn,
+			})
+			bindAccent(function(a, b)
+				g.Color = ColorSequence.new(a, b)
+			end)
+		end
+
+		local colored = solid or accentTile
+		local fg = Theme.Text
+		if colored then
+			fg = (solid and luma(def.Color) > 0.62) and Color3.fromRGB(20, 22, 32) or Color3.new(1, 1, 1)
+		end
+		local letter = string.upper(string.sub(title ~= "" and title or "?", 1, 1))
+		local ic
+		if def.Icon then
+			ic = makeIcon(btn, def.Icon, 24, def.IconColor or fg, letter, {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				Size = UDim2.fromScale(0.56, 0.56),
+			})
+		end
+		if ic and ic:IsA("TextLabel") then
+			ic.TextScaled = true
+		end
+		if not ic then
+			create("TextLabel", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				Size = UDim2.fromScale(0.5, 0.5),
+				Text = letter,
+				TextScaled = true,
+				Weight = "Bold",
+				TextColor3 = fg,
+				Parent = btn,
+			})
+		end
+
+		local dot = create("Frame", {
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -3),
+			Size = UDim2.fromOffset(4, 4),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 1,
+			Parent = slot,
+		})
+		corner(dot, 999)
+
+		-- Tooltip (anak tombol -> ikut naik saat ikon membesar)
+		local Tip = create("Frame", {
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 0, -10),
+			Size = UDim2.fromOffset(0, 24),
+			AutomaticSize = Enum.AutomaticSize.X,
+			BackgroundColor3 = Theme.Glass,
+			BackgroundTransparency = 1,
+			Visible = false,
+			ZIndex = 20,
+			Parent = btn,
+		})
+		corner(Tip, 8)
+		local tipStroke = stroke(Tip, Color3.new(1, 1, 1), 1, 1)
+		padding(Tip, 10, 0, 10, 0)
+		local tipLabel = create("TextLabel", {
+			Size = UDim2.new(0, 0, 1, 0),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Text = title,
+			TextSize = 12,
+			Weight = "Bold",
+			TextTransparency = 1,
+			ZIndex = 21,
+			Parent = Tip,
+		})
+
+		local it = { slot = slot, btn = btn, cur = 1, hover = false }
+		table.insert(items, it)
+
+		local function showTip(on)
+			if title == "" then
+				return
+			end
+			if on then
+				Tip.Visible = true
+			else
+				task.delay(0.15, function()
+					if not it.hover then
+						Tip.Visible = false
+					end
+				end)
+			end
+			tween(Tip, { BackgroundTransparency = on and 0.1 or 1 }, EASE.Fast)
+			tween(tipStroke, { Transparency = on and 0.7 or 1 }, EASE.Fast)
+			tween(tipLabel, { TextTransparency = on and 0 or 1 }, EASE.Fast)
+		end
+		btn.MouseEnter:Connect(function()
+			it.hover = true
+			slot.ZIndex = 5
+			showTip(true)
+		end)
+		btn.MouseLeave:Connect(function()
+			it.hover = false
+			slot.ZIndex = 1
+			showTip(false)
+		end)
+
+		local api = {}
+		function api:SetActive(v)
+			it.active = v == true
+			tween(dot, { BackgroundTransparency = v and 0.05 or 1 }, EASE.Smooth)
+		end
+		function api:SetTitle(t)
+			title = tostring(t)
+			tipLabel.Text = title
+		end
+		function api:Destroy()
+			remove(it)
+		end
+		btn.MouseButton1Click:Connect(function()
+			bounce(btn)
+			safe(def.Callback, api)
+		end)
+		if def.Active then
+			api:SetActive(true)
+		end
+		return api
+	end
+
+	-- loop magnifikasi (hanya bekerja saat pointer di atas dock atau ukuran belum kembali normal)
+	Window:_track(UserInputService.InputChanged:Connect(function(input)
+		if isMove(input) then
+			mouseX = input.Position.X
+		end
+	end))
+	Root.MouseEnter:Connect(function()
+		rootHover = true
+	end)
+	Root.MouseLeave:Connect(function()
+		rootHover = false
+	end)
+	local function isHot()
+		if rootHover then
+			return true
+		end
+		for _, it in ipairs(items) do
+			if it.hover then
+				return true
+			end
+		end
+		return false
+	end
+	Window:_track(RunService.RenderStepped:Connect(function(dt)
+		if maxScale <= 1 then
+			return
+		end
+		local hot = isHot()
+		local a = math.min(1, (dt or 0.016) * 16)
+		for _, it in ipairs(items) do
+			if not it.divider then
+				local target = 1
+				if hot then
+					local pos = it.slot.AbsolutePosition or Vector2.new(0, 0)
+					local size = it.slot.AbsoluteSize or Vector2.new(0, 0)
+					local d = math.abs(mouseX - (pos.X + size.X / 2))
+					if d < range then
+						target = 1 + (maxScale - 1) * (0.5 + 0.5 * math.cos(math.pi * d / range))
+					end
+				end
+				if math.abs(target - it.cur) > 0.002 then
+					it.cur += (target - it.cur) * a
+					applySize(it)
+				end
+			end
+		end
+	end))
+
+	----------------------------------------------------------------
+	local Dock = { Root = Root, Items = items }
+	local appItem
+	local tabItems = {}
+	local tabCount = 0
+
+	function Dock:AddItem(def)
+		return addItem(def)
+	end
+	function Dock:AddDivider()
+		return addItem({ Type = "Divider" })
+	end
+	function Dock:SetVisible(v)
+		tween(Root, { Position = UDim2.new(0.5, 0, 1, v and -offset or (barH + 30)) }, EASE.Smooth)
+	end
+
+	-- sinkronkan titik aktif: ikon window + tab yang sedang terbuka
+	function Dock:_sync()
+		if appItem then
+			appItem:SetActive(Window._visible)
+		end
+		for tab, api in pairs(tabItems) do
+			api:SetActive(Window._visible and Window._active == tab)
+		end
+	end
+
+	function Dock:AddTab(tab, name, icon)
+		if dcfg.Tabs == false then
+			return
+		end
+		tabCount += 1
+		tabItems[tab] = addItem({
+			Title = name,
+			Icon = icon,
+			Callback = function()
+				Window:SelectTab(tab)
+				if not Window._visible then
+					Window:SetVisible(true)
+				elseif Window._minimized then
+					Window:Minimize()
+				end
+			end,
+		}, 100 + tabCount)
+		self:_sync()
+	end
+
+	if dcfg.App ~= false then
+		appItem = addItem({
+			Title = appTitle or "Nebula UI",
+			Icon = appIcon or "lucide:sparkles",
+			Accent = true,
+			Callback = function()
+				Window:Toggle()
+			end,
+		}, 1)
+		addItem({ Type = "Divider" }, 2)
+	end
+	if dcfg.Items and #dcfg.Items > 0 then
+		addItem({ Type = "Divider" }, 999)
+		for _, def in ipairs(dcfg.Items) do
+			addItem(def)
+		end
+	end
+	Dock:_sync()
+	return Dock
+end
+
 local TOP_H = 46
 
 function Library:CreateWindow(cfg)
@@ -3147,6 +3675,9 @@ function Library:CreateWindow(cfg)
 	function Window:SetVisible(state)
 		self._visible = state
 		self:_setBlur(state)
+		if self.Dock then
+			self.Dock:_sync()
+		end
 		if self._setOpenBtn then
 			self._setOpenBtn(not state)
 		end
@@ -3367,6 +3898,15 @@ function Library:CreateWindow(cfg)
 		end)
 	end
 
+	-- Dock (taskbar gaya macOS)
+	local dcfg = cfg.Dock
+	if dcfg == true then
+		dcfg = {}
+	end
+	if type(dcfg) == "table" and dcfg.Enabled ~= false then
+		Window.Dock = createDock(Window, Gui, dcfg, cfg.Icon, cfg.Title)
+	end
+
 	Main.Visible = true
 	tween(Main, { Size = UDim2.fromOffset(W, H), GroupTransparency = 0 }, EASE.Spring)
 	Window:_setBlur(true)
@@ -3531,6 +4071,9 @@ function Library:CreateWindow(cfg)
 
 		Tab._btn = Btn
 		table.insert(self.Tabs, Tab)
+		if self.Dock then
+			self.Dock:AddTab(Tab, name, icon)
+		end
 		if not self._active then
 			self:SelectTab(Tab)
 		end
@@ -3546,6 +4089,9 @@ function Library:CreateWindow(cfg)
 		end
 		self._active = tab
 		tab:_select()
+		if self.Dock then
+			self.Dock:_sync()
+		end
 	end
 
 	-- Pencarian tab (nama tab + judul elemen di dalamnya)
