@@ -1,5 +1,3 @@
-
-
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -13,7 +11,7 @@ local LocalPlayer = Players.LocalPlayer
 local Library = {
 	Flags = {},
 	Items = {},
-	Version = "2.5.4",
+	Version = "2.5.7",
 	_nid = 0,
 }
 
@@ -44,7 +42,7 @@ local Theme = {
 Library.Theme = Theme
 
 ----------------------------------------------------------------------
--- FONT FUNCTION
+-- FONT (Mono ala referensi, atau Sans)
 ----------------------------------------------------------------------
 local function resolveFamily(kind)
 	local enumFont = kind == "Sans" and Enum.Font.BuilderSans or Enum.Font.RobotoMono
@@ -54,6 +52,7 @@ local function resolveFamily(kind)
 	return ok and fam or "rbxasset://fonts/families/GothamSSm.json"
 end
 local FamilyAsset = resolveFamily("Mono")
+-- Bobot huruf dinaikkan satu tingkat agar tulisan lebih tebal & terbaca di atas latar terang
 local WEIGHT = {
 	Regular = Enum.FontWeight.Medium,
 	Medium = Enum.FontWeight.SemiBold,
@@ -63,7 +62,7 @@ local WEIGHT = {
 }
 
 ----------------------------------------------------------------------
--- ANIMATION FUNCTION
+-- ANIMATION PRESETS
 ----------------------------------------------------------------------
 local EASE = {
 	Instant = TweenInfo.new(0),
@@ -79,7 +78,16 @@ local function tween(obj, props, info)
 	return t
 end
 
+-- Registry warna aksen: elemen yang didaftarkan ikut berubah saat Library:SetAccent()
 local accentRegs, accentHooks = {}, {}
+-- Buang entri milik instance yang sudah di-Destroy (mis. baris dropdown lama setelah Refresh)
+local function pruneAccent()
+	for i = #accentRegs, 1, -1 do
+		if not accentRegs[i][1].Parent then
+			table.remove(accentRegs, i)
+		end
+	end
+end
 local function accented(inst, prop)
 	table.insert(accentRegs, { inst, prop })
 	return inst
@@ -112,6 +120,7 @@ local function create(class, props, children)
 		inst.FontFace = Font.new(FamilyAsset, WEIGHT.Medium)
 		inst.TextColor3 = Theme.Text
 		inst.TextSize = 13
+		-- outline tipis gelap supaya huruf tetap terbaca di atas background terang/ramai
 		inst.TextStrokeColor3 = Color3.new(0, 0, 0)
 		inst.TextStrokeTransparency = 0.62
 	end
@@ -223,7 +232,8 @@ end
 local rippleLayers = setmetatable({}, { __mode = "k" })
 
 local function ripple(frame, _input)
-
+	-- Umpan balik klik berupa kilatan warna pada lapisan yang ukurannya tetap 100% kartu.
+	-- Tidak membuat objek baru dan tidak mengubah ukuran apa pun.
 	local flash = rippleLayers[frame]
 	if not flash then
 		return
@@ -243,6 +253,7 @@ local iconSources = {
 	solar = "https://raw.githubusercontent.com/Footagesus/Icons/refs/heads/main/solar/dist/Icons.lua",
 }
 
+-- pack di-load malas (lazy) dan di-cache, supaya tidak mengunduh 4 file sekaligus
 local function loadIconPack(libName)
 	if Icons[libName] ~= nil then
 		return Icons[libName]
@@ -278,6 +289,7 @@ end
 Library.Icons = Icons
 Library.ResolveIcon = resolveIcon
 
+-- Buat icon; jika gagal dimuat dan ada fallback, pakai teks sebagai gantinya
 local function makeIcon(parent, str, size, color, fallback, props)
 	local asset = resolveIcon(str)
 	local inst
@@ -323,6 +335,7 @@ function Library:SetAccent(c1, c2, instant)
 		c2 = Color3.fromHSV((h + 0.07) % 1, math.clamp(s * 0.65, 0, 1), math.clamp(v + 0.15, 0, 1))
 	end
 	Theme.Accent, Theme.Accent2 = c1, c2
+	pruneAccent()
 	for _, r in ipairs(accentRegs) do
 		local inst, prop = r[1], r[2]
 		if inst.Parent then
@@ -379,7 +392,7 @@ local function namedColor(c)
 end
 
 ----------------------------------------------------------------------
--- CONFIG 
+-- CONFIG (serialize)
 ----------------------------------------------------------------------
 local function encode(v)
 	local t = typeof(v)
@@ -406,6 +419,7 @@ local function configRoot()
 	return Library.Folder or CONFIG_DIR
 end
 
+-- Buat folder (beserta sub-folder) jika executor mendukung makefolder
 local function ensureFolder(path)
 	return (pcall(function()
 		if typeof(makefolder) ~= "function" then
@@ -421,6 +435,7 @@ local function ensureFolder(path)
 	end))
 end
 
+-- Library:SetFolder("NamaFolder") atau CreateWindow({ Folder = "NamaFolder" })
 function Library:SetFolder(name)
 	if type(name) == "string" and name ~= "" then
 		Library.Folder = name
@@ -460,8 +475,13 @@ function Library:LoadConfig(name)
 		local data = HttpService:JSONDecode(readfile(path))
 		for flag, value in pairs(data) do
 			local item = self.Items[flag]
-			if item then
-				item:Set(decode(value))
+			if item and item.Set then
+				local okItem, errItem = pcall(function()
+					item:Set(decode(value))
+				end)
+				if not okItem then
+					warn("[NebulaUI] Flag '" .. tostring(flag) .. "' dilewati: " .. tostring(errItem))
+				end
 			end
 		end
 	end)
@@ -491,7 +511,7 @@ function Library:DeleteConfig(name)
 end
 
 ----------------------------------------------------------------------
--- NOTIFICATIONS FUNCTION
+-- NOTIFICATIONS  (banner kaca ala iOS)
 ----------------------------------------------------------------------
 local function getNotifHolder()
 	if Library._notifHolder and Library._notifHolder.Parent then
@@ -572,6 +592,7 @@ function Library:_notify(cfg)
 		Parent = rim,
 	})
 
+	-- chip icon berwarna di kiri
 	local Chip = create("Frame", {
 		Position = UDim2.fromOffset(14, 14),
 		Size = UDim2.fromOffset(36, 36),
@@ -642,6 +663,7 @@ function Library:_notify(cfg)
 			tries += 1
 		end
 		local h = Card.AbsoluteSize.Y
+		-- kunci tinggi kartu, baru pasang progress bar & overlay klik
 		Card.AutomaticSize = Enum.AutomaticSize.None
 		Card.Size = UDim2.new(1, 0, 0, h)
 		local Bar = create("Frame", {
@@ -673,7 +695,7 @@ function Library:_notify(cfg)
 end
 
 ----------------------------------------------------------------------
--- ELEMENTS
+-- ELEMENTS (dipakai oleh Tab, Section & SubTab)
 ----------------------------------------------------------------------
 local Elements = {}
 Elements.__index = Elements
@@ -683,10 +705,18 @@ function Elements:_next()
 	return self._order
 end
 
-
+--[[
+	Kartu kaca. F TIDAK punya layout (aman untuk overlay/ripple/lock);
+	seluruh isi ada di Stack (UIListLayout):
+	  F (card)
+	   └─ Stack
+	       ├─ Top   : [Teks: judul + deskripsi (wrap)]   [kontrol di kanan]
+	       └─ Extra : area tambahan (slider bar, list dropdown, color picker, progress)
+]]
 local stackOf = setmetatable({}, { __mode = "k" })
 
-
+-- Samakan tinggi `frame` dengan tinggi `source` (dipakai agar overlay berukuran skala
+-- tidak pernah berada di dalam frame AutomaticSize -> kartu tidak bisa "nyangkut" membesar)
 local function bindHeight(frame, source)
 	local function update()
 		frame.Size = UDim2.new(1, 0, 0, source.AbsoluteSize.Y)
@@ -719,6 +749,7 @@ local function makeCard(self, cfg, tint)
 	listLayout(Stack, 0)
 	stackOf[F] = Stack
 
+	-- Lapisan kilat klik (ukuran tetap = ukuran kartu, tidak pernah menambah ukuran)
 	local Flash = create("Frame", {
 		Name = "Flash",
 		Size = UDim2.fromScale(1, 1),
@@ -732,6 +763,7 @@ local function makeCard(self, cfg, tint)
 	rippleLayers[F] = Flash
 	bindHeight(F, Stack)
 
+	-- Locked overlay
 	local Lock = create("TextButton", {
 		Name = "Lock",
 		Size = UDim2.fromScale(1, 1),
@@ -747,7 +779,8 @@ local function makeCard(self, cfg, tint)
 		Position = UDim2.new(1, -14, 0.5, 0),
 		ZIndex = 21,
 	})
-
+	-- Boleh dipanggil obj.SetLocked(true) maupun obj:SetLocked(true)
+	-- (dengan titik dua, argumen pertama adalah obj itu sendiri, bukan state)
 	local function setLocked(a, b)
 		local state = a
 		if type(a) == "table" then
@@ -770,6 +803,7 @@ local function makeCard(self, cfg, tint)
 end
 
 local function baseElement(self, cfg, rightWidth, minH)
+	-- alias gaya WindUI: Title/Desc
 	cfg.Name = cfg.Name or cfg.Title
 	cfg.Description = cfg.Description or cfg.Desc
 	if self._tab then
@@ -847,6 +881,7 @@ local function makeExtra(F, height)
 	})
 end
 
+-- Ikon di sisi kartu (kiri/kanan) + geser teks agar tidak menimpa ikon
 local function leadIcon(Top, icon, color, side, symmetric)
 	if not icon then
 		return nil
@@ -911,7 +946,11 @@ local function dragInput(window, frame, onMove, onState)
 	end))
 end
 
-
+-- ───────────────────────── SECTION ─────────────────────────
+--[[
+	Section:CreateSection("Nama")
+	Section:CreateSection({ Name = "Auto Walk", Icon = "lucide:bot", Collapsible = true, Open = true })
+]]
 function Elements:CreateSection(arg)
 	local cfg = type(arg) == "table" and arg or { Name = arg }
 	local collapsible = cfg.Collapsible ~= false
@@ -930,6 +969,7 @@ function Elements:CreateSection(arg)
 	stroke(Card, Theme.Stroke, 1, 0.84)
 	listLayout(Card, 0)
 
+	-- Header: [icon] Judul ............ [chevron]
 	local Head = create("Frame", {
 		Size = UDim2.new(1, 0, 0, 48),
 		BackgroundTransparency = 1,
@@ -972,6 +1012,7 @@ function Elements:CreateSection(arg)
 		Parent = Head,
 	})
 
+	-- Body (bisa collapse)
 	local Clip = create("Frame", {
 		Name = "Body",
 		Size = UDim2.new(1, 0, 0, 0),
@@ -1030,6 +1071,7 @@ function Elements:CreateSection(arg)
 	return Section
 end
 
+-- ───────────────────────── SUB-TAB (pill di dalam section) ─────────────────────────
 function Elements:CreateSubTab(name, icon)
 	if not self._bar then
 		self._bar = create("ScrollingFrame", {
@@ -1122,6 +1164,7 @@ function Elements:CreateSubTab(name, icon)
 	return Sub
 end
 
+-- ───────────────────────── LABEL ─────────────────────────
 function Elements:CreateLabel(text)
 	local L = create("TextLabel", {
 		Size = UDim2.new(1, 0, 0, 0),
@@ -1143,7 +1186,14 @@ function Elements:CreateLabel(text)
 	return obj
 end
 
-
+-- ───────────────────────── BUTTON ─────────────────────────
+--[[
+	Tab:Button({
+		Title, Desc, Icon, IconAlign = "Left"|"Right", IconColor = Color3,
+		Color = Color3 (warna kartu), Locked, LockedTitle, Justify = "Between"|"Center",
+		Flag, Callback
+	})
+]]
 function Elements:CreateButton(cfg)
 	cfg = cfg or {}
 	local center = cfg.Justify == "Center"
@@ -1225,7 +1275,10 @@ function Elements:CreateButton(cfg)
 	return obj
 end
 
-
+-- ───────────────────────── TOGGLE ─────────────────────────
+--[[
+	Tab:Toggle({ Title, Desc, Icon, Value = false, Type = "Toggle"|"Checkbox", Locked, Flag, Callback })
+]]
 function Elements:CreateToggle(cfg)
 	cfg = cfg or {}
 	local value = cfg.Value == true or cfg.Default == true
@@ -1329,11 +1382,15 @@ function Elements:CreateToggle(cfg)
 	return obj
 end
 
+-- ───────────────────────── SLIDER ─────────────────────────
 function Elements:CreateSlider(cfg)
 	cfg = cfg or {}
-
+	-- Value = { Min, Max, Default } (gaya baru) atau Min/Max/Default langsung (gaya lama)
 	local vt = type(cfg.Value) == "table" and cfg.Value or {}
 	local min, max = vt.Min or cfg.Min or 0, vt.Max or cfg.Max or 100
+	if min > max then
+		min, max = max, min
+	end
 	local inc = cfg.Step or cfg.Increment or 1
 	local suffix = cfg.Suffix or ""
 	local start = vt.Default
@@ -1425,7 +1482,13 @@ function Elements:CreateSlider(cfg)
 	return obj
 end
 
-
+-- ───────────────────────── DROPDOWN ─────────────────────────
+--[[
+	Tab:Dropdown({ Title, Desc, Values = { "A", "B" }, Value = "A", Multi = false, Locked, Flag, Callback })
+	Values juga boleh berisi tabel (menu aksi):
+	  { Title = "New file", Desc = "...", Icon = "file-plus", Callback = function() end },
+	  { Type = "Divider" },
+]]
 function Elements:CreateDropdown(cfg)
 	cfg = cfg or {}
 	local multi = cfg.Multi == true
@@ -1565,6 +1628,7 @@ function Elements:CreateDropdown(cfg)
 		for _, o in ipairs(created) do
 			o:Destroy()
 		end
+		pruneAccent()
 		created, rows = {}, {}
 		for i, it in ipairs(items) do
 			if it.divider then
@@ -1691,6 +1755,7 @@ function Elements:CreateDropdown(cfg)
 	end)
 
 	normalize(cfg.Values or cfg.Options)
+	-- Menu aksi: semua item punya Callback & tidak ada Value awal -> klik langsung menjalankan aksi
 	if not multi and cfg.Value == nil and cfg.Default == nil then
 		local count = 0
 		actionMenu = true
@@ -1718,7 +1783,13 @@ function Elements:CreateDropdown(cfg)
 	return obj
 end
 
-
+-- ───────────────────────── TEXTBOX / INPUT ─────────────────────────
+--[[
+	Tab:Input({
+		Title, Desc, Icon = "user", Type = "Default" | "Textarea",
+		Placeholder, Value, Locked, Flag, Callback = function(text) end,
+	})
+]]
 function Elements:CreateTextBox(cfg)
 	cfg = cfg or {}
 	local value = cfg.Value
@@ -1812,6 +1883,7 @@ function Elements:CreateTextBox(cfg)
 	return obj
 end
 
+-- ───────────────────────── KEYBIND ─────────────────────────
 local function keyName(k)
 	if k == Enum.KeyCode.Unknown then
 		return "-"
@@ -1825,6 +1897,7 @@ end
 
 function Elements:CreateKeybind(cfg)
 	cfg = cfg or {}
+	-- Value = "V" (nama tombol) atau Enum.KeyCode
 	local key = cfg.Value
 	if key == nil then
 		key = cfg.Default
@@ -1837,7 +1910,19 @@ function Elements:CreateKeybind(cfg)
 	end
 	key = key or Enum.KeyCode.Unknown
 	local listening = false
-	local F, Top, st, Title, setLocked = baseElement(self, cfg, 80)
+	local locked = cfg.Locked == true
+	local F, Top, st, Title, setLockedRaw = baseElement(self, cfg, 80)
+	local function setLocked(a, b)
+		local state = a
+		if type(a) == "table" then
+			state = b
+		end
+		locked = state == true
+		if locked then
+			listening = false
+		end
+		setLockedRaw(state)
+	end
 	leadIcon(Top, cfg.Icon, cfg.IconColor)
 
 	local Btn = create("TextButton", {
@@ -1866,7 +1951,10 @@ function Elements:CreateKeybind(cfg)
 	local obj = { SetLocked = setLocked }
 	function obj:Set(k, silent)
 		if typeof(k) == "string" then
-			k = Enum.KeyCode[k]
+			local okK, kc = pcall(function()
+				return Enum.KeyCode[k]
+			end)
+			k = okK and kc or nil
 		end
 		key = k or Enum.KeyCode.Unknown
 		label()
@@ -1882,6 +1970,9 @@ function Elements:CreateKeybind(cfg)
 	end
 
 	Btn.MouseButton1Click:Connect(function()
+		if locked then
+			return
+		end
 		listening = true
 		Btn.Text = "..."
 		tween(bs, { Color = Theme.Accent, Transparency = 0 }, EASE.Fast)
@@ -1898,7 +1989,7 @@ function Elements:CreateKeybind(cfg)
 					obj:Set(input.KeyCode)
 				end
 			end
-		elseif not gp and key ~= Enum.KeyCode.Unknown and input.KeyCode == key then
+		elseif not locked and not gp and key ~= Enum.KeyCode.Unknown and input.KeyCode == key then
 			safe(cfg.Callback, key.Name)
 		end
 	end))
@@ -1907,7 +1998,16 @@ function Elements:CreateKeybind(cfg)
 	return obj
 end
 
-
+-- ───────────────────────── COLOR PICKER ─────────────────────────
+--[[
+	Tab:Colorpicker({
+		Title = "Colorpicker", Desc = "...", Default = Color3.fromRGB(0,255,0),
+		Transparency = 0,          -- (opsional) tampilkan slider transparansi
+		Locked = false,
+		ApplyToTheme = true,       -- (opsional) warna ini langsung dipakai sebagai warna aksen UI
+		Callback = function(color, transparency) end,
+	})
+]]
 function Elements:CreateColorPicker(cfg)
 	cfg = cfg or {}
 	local color = cfg.Default or Theme.Accent
@@ -2100,7 +2200,14 @@ function Elements:CreateColorPicker(cfg)
 	return obj
 end
 
-
+-- ───────────────────────── PARAGRAPH ─────────────────────────
+--[[
+	Tab:Paragraph({
+		Title, Desc, Color = "Red" (nama atau Color3), Image, ImageSize = 30,
+		Thumbnail, ThumbnailSize = 80, Locked = false,
+		Buttons = { { Icon = "bird", Title = "Button", Callback = function() end } },
+	})
+]]
 function Elements:CreateParagraph(cfg)
 	cfg = cfg or {}
 	cfg.Name = cfg.Name or cfg.Title
@@ -2248,7 +2355,15 @@ function Elements:CreateParagraph(cfg)
 	return obj
 end
 
-
+-- ───────────────────────── PROGRESS BAR ─────────────────────────
+--[[
+	Tab:ProgressBar({
+		Title = "Syncing", Desc = "Please wait...",
+		Indeterminate = true, IndeterminateText = "Syncing...", Speed = 1.2,
+		-- mode biasa: Default/Value, Min, Max, Suffix
+	})
+	obj:Set(v)  obj:SetIndeterminate(true/false, "teks")  obj:SetTitle()  obj:SetDesc()
+]]
 function Elements:CreateProgressBar(cfg)
 	cfg = cfg or {}
 	local indeterminate = cfg.Indeterminate == true
@@ -2343,6 +2458,7 @@ function Elements:CreateProgressBar(cfg)
 	return obj
 end
 
+-- ───────────────────────── CODE (syntax highlight Lua) ─────────────────────────
 local DEFAULT_CODE_THEME = {
 	numbers = Color3.fromHex("#FAB387"),
 	boolean = Color3.fromHex("#FAB387"),
@@ -2484,7 +2600,14 @@ local function highlightLua(code, theme)
 	return table.concat(out)
 end
 
-
+--[==[
+	Tab:Code({
+		Title, Desc, Code = [[...]], CodeSize = 14, CanCopied = true,
+		Height = UDim.new(1, 0),  -- opsional: Scale = tinggi halaman; kosong = tinggi otomatis
+		CodeTheme = { ... },      -- opsional (default Catppuccin Mocha)
+		OnCopy = function() end,
+	})
+]==]
 function Elements:CreateCode(cfg)
 	cfg = cfg or {}
 	local codeText = tostring(cfg.Code or "")
@@ -2615,6 +2738,7 @@ function Elements:CreateCode(cfg)
 	return obj
 end
 
+-- Alias gaya WindUI: Tab:Paragraph(), Tab:Colorpicker(), Tab:ProgressBar(), dst.
 Elements.Paragraph = Elements.CreateParagraph
 Elements.Colorpicker = Elements.CreateColorPicker
 Elements.ProgressBar = Elements.CreateProgressBar
@@ -2629,7 +2753,7 @@ Elements.Section = Elements.CreateSection
 Elements.Code = Elements.CreateCode
 
 ----------------------------------------------------------------------
--- WINDOW FUNCTION
+-- WINDOW
 ----------------------------------------------------------------------
 local WindowClass = {}
 WindowClass.__index = WindowClass
@@ -2667,9 +2791,26 @@ local function makeDraggable(window, handle, target)
 end
 
 ----------------------------------------------------------------------
--- DOCK FUNCTION
+-- DOCK  (taskbar kaca gaya macOS: ikon membesar saat di-hover, tooltip, titik aktif, bounce)
 ----------------------------------------------------------------------
-
+--[[
+	CreateWindow({ Dock = {
+		Enabled = true,
+		App = true,            -- ikon window (klik = tampil/sembunyi)
+		Tabs = true,           -- setiap tab otomatis jadi ikon dock
+		IconSize = 46,         -- ukuran ikon dasar
+		Magnify = 1.5,         -- skala maksimum saat di-hover (1 = tanpa efek)
+		Offset = 12,           -- jarak dari tepi bawah layar
+		Items = {
+			{ Title = "Discord", Icon = "message-circle", Color = Color3.fromHex("#5865F2"), Callback = function() end },
+			{ Type = "Divider" },
+			{ Title = "Settings", Icon = "settings", Active = false },
+		},
+	} })
+	Window.Dock:AddItem({...})  -> item { SetActive(bool), SetTitle(text), Destroy() }
+	Window.Dock:AddDivider()
+	Window.Dock:SetVisible(bool)
+]]
 local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 	local touch = UserInputService.TouchEnabled
 	local base = dcfg.IconSize or (touch and 38 or 46)
@@ -2711,6 +2852,17 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 
 	local items = {}
 	local customOrder = 1000
+	local colorIdx = 0
+	local colorful = dcfg.Colorful ~= false
+	-- palet gaya iOS: tiap ikon tab/item otomatis dapat warna sendiri (Color = false -> netral)
+	local PALETTE = {
+		Color3.fromHex("#0A84FF"), Color3.fromHex("#30D158"), Color3.fromHex("#BF5AF2"),
+		Color3.fromHex("#FF375F"), Color3.fromHex("#64D2FF"), Color3.fromHex("#FF9F0A"),
+		Color3.fromHex("#5E5CE6"), Color3.fromHex("#FFD60A"),
+	}
+	local function lighten(c, a)
+		return Color3.new(c.R + (1 - c.R) * a, c.G + (1 - c.G) * a, c.B + (1 - c.B) * a)
+	end
 	local mouseX = 0
 	local rootHover = false
 
@@ -2767,8 +2919,12 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 		end
 
 		local title = tostring(def.Title or def.Name or "")
-		local solid = typeof(def.Color) == "Color3"
 		local accentTile = def.Accent == true
+		if def.Color == nil and not accentTile and colorful then
+			colorIdx += 1
+			def.Color = PALETTE[((colorIdx - 1) % #PALETTE) + 1]
+		end
+		local solid = typeof(def.Color) == "Color3"
 
 		local slot = create("Frame", {
 			Size = UDim2.fromOffset(base + 6, barH),
@@ -2782,13 +2938,20 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 			AnchorPoint = Vector2.new(0.5, 1),
 			Position = UDim2.new(0.5, 0, 1, -10),
 			Size = UDim2.fromOffset(base, base),
-			BackgroundColor3 = solid and def.Color or (accentTile and Color3.new(1, 1, 1) or Theme.Surface),
+			BackgroundColor3 = (solid or accentTile) and Color3.new(1, 1, 1) or Theme.Surface,
 			BackgroundTransparency = (solid or accentTile) and 0 or 0.3,
 			Text = "",
 			Parent = slot,
 		})
 		create("UICorner", { CornerRadius = UDim.new(0.27, 0), Parent = btn })
 		stroke(btn, Color3.new(1, 1, 1), 1, 0.75)
+		if solid then
+			create("UIGradient", {
+				Rotation = 90,
+				Color = ColorSequence.new(lighten(def.Color, 0.28), def.Color),
+				Parent = btn,
+			})
+		end
 		if accentTile then
 			local g = create("UIGradient", {
 				Rotation = 45,
@@ -2840,6 +3003,7 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 		})
 		corner(dot, 999)
 
+		-- Tooltip (anak tombol -> ikut naik saat ikon membesar)
 		local Tip = create("Frame", {
 			AnchorPoint = Vector2.new(0.5, 1),
 			Position = UDim2.new(0.5, 0, 0, -10),
@@ -2918,6 +3082,7 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 		return api
 	end
 
+	-- loop magnifikasi (hanya bekerja saat pointer di atas dock atau ukuran belum kembali normal)
 	Window:_track(UserInputService.InputChanged:Connect(function(input)
 		if isMove(input) then
 			mouseX = input.Position.X
@@ -2965,6 +3130,7 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 		end
 	end))
 
+	----------------------------------------------------------------
 	local Dock = { Root = Root, Items = items }
 	local appItem
 	local tabItems = {}
@@ -2980,6 +3146,7 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 		tween(Root, { Position = UDim2.new(0.5, 0, 1, v and -offset or (barH + 30)) }, EASE.Smooth)
 	end
 
+	-- sinkronkan titik aktif: ikon window + tab yang sedang terbuka
 	function Dock:_sync()
 		if appItem then
 			appItem:SetActive(Window._visible)
@@ -2989,7 +3156,7 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 		end
 	end
 
-	function Dock:AddTab(tab, name, icon)
+	function Dock:AddTab(tab, name, icon, color)
 		if dcfg.Tabs == false then
 			return
 		end
@@ -2997,6 +3164,7 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 		tabItems[tab] = addItem({
 			Title = name,
 			Icon = icon,
+			Color = color,
 			Callback = function()
 				Window:SelectTab(tab)
 				if not Window._visible then
@@ -3074,6 +3242,7 @@ function Library:CreateWindow(cfg)
 	mountGui(Gui)
 	Window.Gui = Gui
 
+	-- Main (CanvasGroup => fade in/out seluruh window). TIDAK boleh ada UIGradient di sini.
 	local Main = create("CanvasGroup", {
 		Name = "Main",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -3086,6 +3255,7 @@ function Library:CreateWindow(cfg)
 	corner(Main, 18)
 	Window.Main = Main
 
+	-- Lapisan kaca (selalu di belakang konten)
 	local GlassBase = create("Frame", {
 		Name = "GlassBase",
 		ZIndex = 0,
@@ -3116,6 +3286,50 @@ function Library:CreateWindow(cfg)
 		Parent = Sheen,
 	})
 
+	-- Gambar latar window (di atas lapisan kaca, di bawah semua konten)
+	-- CreateWindow({ Background = "rbxassetid://123", BackgroundImageTransparency = 0.5 })
+	local BgFrame = create("Frame", {
+		Name = "Background",
+		ZIndex = 0,
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Parent = Main,
+	})
+	local BgImage = create("ImageLabel", {
+		Name = "ImageLabel",
+		ZIndex = 0,
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Image = "",
+		ScaleType = Enum.ScaleType.Crop,
+		ImageTransparency = 0.5,
+		Visible = false,
+		Parent = BgFrame,
+	})
+	Window.UIElements = { Main = Main, Background = BgFrame }
+	Window.BackgroundImageTransparency = 0.5
+
+	function Window:SetBackgroundImage(image)
+		local asset = imageAsset(image)
+		BgImage.Image = asset
+		BgImage.Visible = asset ~= ""
+	end
+
+	function Window:SetBackgroundImageTransparency(t)
+		t = math.clamp(tonumber(t) or 0.5, 0, 1)
+		t = math.floor(t * 10 + 0.5) / 10
+		BgImage.ImageTransparency = t
+		self.BackgroundImageTransparency = t
+	end
+
+	if cfg.BackgroundImageTransparency ~= nil then
+		Window:SetBackgroundImageTransparency(cfg.BackgroundImageTransparency)
+	end
+	if cfg.Background ~= nil then
+		Window:SetBackgroundImage(cfg.Background)
+	end
+
+	-- Blur dunia 3D di belakang window
 	local blurSize = cfg.Blur == false and 0 or (cfg.BlurSize or 16)
 	local Blur = Instance.new("BlurEffect")
 	Blur.Name = "NebulaBlur"
@@ -3131,6 +3345,7 @@ function Library:CreateWindow(cfg)
 		tween(Blur, { Size = on and blurSize or 0 }, EASE.Slow)
 	end
 
+	-- Top bar (Topbar = { Height = 44, ButtonsType = "Mac" | "Default" })
 	local TopBar = create("Frame", {
 		Name = "TopBar",
 		Size = UDim2.new(1, 0, 0, TOP_H),
@@ -3226,6 +3441,7 @@ function Library:CreateWindow(cfg)
 	bindAccent(function(a, b)
 		logoGrad.Color = ColorSequence.new(a, b)
 	end)
+	-- Icon: "lucide:sparkles", "solar:...", "rbxassetid://123" atau angka ID
 	local logoIcon = cfg.Icon and makeIcon(Logo, cfg.Icon, 18, Color3.new(1, 1, 1), nil, {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
@@ -3241,6 +3457,7 @@ function Library:CreateWindow(cfg)
 		})
 	end
 
+	-- Judul + subjudul + tag
 	local Left = create("Frame", {
 		Name = "Left",
 		Position = UDim2.fromOffset(leftX + 38, 0),
@@ -3287,6 +3504,7 @@ function Library:CreateWindow(cfg)
 	})
 	listLayout(Tags, 6, true)
 
+	-- Window:Tag({ Title = "v1.0", Icon = "github", Color = Color3.fromHex("#1c1c1c"), Border = true })
 	local tagCount = 0
 	function Window:Tag(t)
 		t = t or {}
@@ -3335,6 +3553,7 @@ function Library:CreateWindow(cfg)
 		Window:Tag(t)
 	end
 
+	-- Garis aksen + kilau
 	create("Frame", {
 		Position = UDim2.fromOffset(0, TOP_H),
 		Size = UDim2.new(1, 0, 0, 1),
@@ -3364,6 +3583,7 @@ function Library:CreateWindow(cfg)
 	tween(ShineGrad, { Offset = Vector2.new(1, 0) },
 		TweenInfo.new(2.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true))
 
+	-- Body
 	local Body = create("CanvasGroup", {
 		Name = "Body",
 		Position = UDim2.fromOffset(0, TOP_H + 1),
@@ -3385,6 +3605,7 @@ function Library:CreateWindow(cfg)
 		Parent = Body,
 	})
 
+	-- Search bar sidebar (HideSearchBar = true untuk menyembunyikan)
 	local profileSpace = (cfg.User == nil or cfg.User.Enabled ~= false) and 64 or 10
 	local searchOffset = 0
 	local SearchInput
@@ -3436,6 +3657,7 @@ function Library:CreateWindow(cfg)
 	listLayout(TabList, 4)
 	Window._TabList = TabList
 
+	-- Profil pemain: User = { Enabled = true, Anonymous = true, Callback = function() end }
 	local userCfg = cfg.User or {}
 	local userEnabled = userCfg.Enabled ~= false
 	local anonymous = userCfg.Anonymous == true
@@ -3549,6 +3771,7 @@ function Library:CreateWindow(cfg)
 		})
 	end
 
+	-- Rim kaca yang berkilau
 	local Rim = create("Frame", {
 		Name = "Rim",
 		Size = UDim2.fromScale(1, 1),
@@ -3568,7 +3791,9 @@ function Library:CreateWindow(cfg)
 		Parent = RimStroke,
 	})
 
-
+	----------------------------------------------------------------
+	-- Window behaviour
+	----------------------------------------------------------------
 	makeDraggable(Window, TopBar, Main)
 
 	function Window:SetVisible(state)
@@ -3601,7 +3826,9 @@ function Library:CreateWindow(cfg)
 		self:SetVisible(not self._visible)
 	end
 
-
+	-- Minimize (tombol kuning, tombol di panel, atau kode): sembunyikan ke OpenButton/Dock.
+	-- Panggil lagi (atau klik OpenButton / ikon Dock) untuk menampilkan kembali.
+	-- Topbar = { MinimizeMode = "Collapse" } -> pakai gaya lama (window melipat jadi top bar).
 	function Window:Minimize()
 		local mode = cfg.Topbar and cfg.Topbar.MinimizeMode
 		local canRestore = self._setOpenBtn ~= nil or self.Dock ~= nil
@@ -3612,6 +3839,7 @@ function Library:CreateWindow(cfg)
 		self:Collapse()
 	end
 
+	-- Lipat window jadi top bar saja (gaya lama)
 	function Window:Collapse()
 		self._minimized = not self._minimized
 		self:_setBlur(not self._minimized)
@@ -3620,6 +3848,7 @@ function Library:CreateWindow(cfg)
 		self._curH = newH
 		local p = Main.Position
 		if self._minimized then
+			-- isi window memudar cepat lalu disembunyikan total
 			tween(Body, { GroupTransparency = 1 }, EASE.Fast)
 			task.delay(0.15, function()
 				if self._minimized then
@@ -3664,6 +3893,7 @@ function Library:CreateWindow(cfg)
 		Library:SetAccent(a, b)
 	end
 
+	-- Maksimalkan / pulihkan ukuran (tombol hijau gaya Mac)
 	local origW, origH = W, H
 	local maximized = false
 	function Window:ToggleMaximize()
@@ -3706,6 +3936,7 @@ function Library:CreateWindow(cfg)
 		end
 	end))
 
+	-- OpenButton: muncul saat window disembunyikan (ToggleKey / Window:Toggle / HideOnClose)
 	local ob = cfg.OpenButton or {}
 	local obEnabled = ob.Enabled ~= false and cfg.FloatingButton ~= false
 	if ob.OnlyMobile == true and not UserInputService.TouchEnabled then
@@ -3773,6 +4004,7 @@ function Library:CreateWindow(cfg)
 			end
 		end
 
+		-- drag (dibedakan dari klik dengan ambang gerak)
 		local dragging, moved, dStart, dPos = false, false, nil, nil
 		OpenBtn.InputBegan:Connect(function(input)
 			if isPointer(input) then
@@ -3810,6 +4042,7 @@ function Library:CreateWindow(cfg)
 		end)
 	end
 
+	-- Dock (taskbar gaya macOS)
 	local dcfg = cfg.Dock
 	if dcfg == true then
 		dcfg = {}
@@ -3822,8 +4055,11 @@ function Library:CreateWindow(cfg)
 	tween(Main, { Size = UDim2.fromOffset(W, H), GroupTransparency = 0 }, EASE.Spring)
 	Window:_setBlur(true)
 
-
-	function Window:CreateTab(name, icon)
+	----------------------------------------------------------------
+	-- TAB (sidebar) + halaman dengan header ikon + judul
+	----------------------------------------------------------------
+	-- CreateTab(nama, icon, warnaDock?) : warnaDock = Color3 (opsional) untuk ikon di Dock
+	function Window:CreateTab(name, icon, dockColor)
 		local Tab = setmetatable({ _window = self, _order = 0, Name = name, _titles = {} }, Elements)
 		Tab._tab = Tab
 
@@ -3887,6 +4123,7 @@ function Library:CreateWindow(cfg)
 			Parent = Btn,
 		})
 
+		-- Halaman
 		local Page = create("CanvasGroup", {
 			Name = name,
 			Size = UDim2.fromScale(1, 1),
@@ -3980,7 +4217,7 @@ function Library:CreateWindow(cfg)
 		Tab._btn = Btn
 		table.insert(self.Tabs, Tab)
 		if self.Dock then
-			self.Dock:AddTab(Tab, name, icon)
+			self.Dock:AddTab(Tab, name, icon, dockColor)
 		end
 		if not self._active then
 			self:SelectTab(Tab)
@@ -4002,6 +4239,7 @@ function Library:CreateWindow(cfg)
 		end
 	end
 
+	-- Pencarian tab (nama tab + judul elemen di dalamnya)
 	if SearchInput then
 		local function applySearch()
 			local q = SearchInput.Text or ""
@@ -4037,6 +4275,34 @@ function Library:CreateWindow(cfg)
 		end)
 	end
 
+	-- Bersihkan instance sebelumnya jika script dieksekusi ulang tanpa Destroy()
+	-- (tanpa ini listener window lama tetap hidup dan callback keybind terpanggil ganda)
+	function Window:_destroyNow()
+		for _, c in ipairs(self._conns) do
+			pcall(function()
+				c:Disconnect()
+			end)
+		end
+		self._conns = {}
+		pcall(function()
+			Gui:Destroy()
+		end)
+		pcall(function()
+			Blur:Destroy()
+		end)
+	end
+	pcall(function()
+		local env = (typeof(getgenv) == "function" and getgenv()) or _G
+		local prev = env.__NebulaUI_Last
+		if type(prev) == "function" then
+			pcall(prev)
+		end
+		env.__NebulaUI_Last = function()
+			Window:_destroyNow()
+		end
+	end)
+
+	-- Config manager gaya WindUI
 	Window.ConfigManager = {
 		CreateConfig = function(_, name)
 			return {
