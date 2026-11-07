@@ -1,3 +1,16 @@
+--[[
+	╔═══════════════════════════════════════════════╗
+	║  NebulaUI  •  Roblox Luau UI Library  v2.5.7  ║
+	║  iOS Glass • Icons • Sections • Sub-tabs      ║
+	╚═══════════════════════════════════════════════╝
+
+	Icon: tulis "pack:nama", contoh "lucide:bot", "solar:home-bold", "geist:...", "craft:..."
+	      (atau langsung "rbxassetid://ID"). Pack di-load sekali saat pertama dipakai.
+
+	Struktur:
+	  Window → Tab → Section (card, bisa collapse) → SubTab (pill) → Elemen
+]]
+
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -4317,4 +4330,5 @@ function Library:CreateWindow(cfg)
 	return Window
 end
 
+print("[NebulaUI] v" .. Library.Version .. " loaded")
 return Library
