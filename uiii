@@ -275,6 +275,16 @@ end
 Library.Icons = Icons
 Library.ResolveIcon = resolveIcon
 
+-- Gambar custom (assetid / rbxasset) = berwarna penuh, jangan di-tint gelap.
+-- Ikon library (lucide dll) = satu warna, boleh di-tint sesuai kontras.
+local function isCustomImage(str)
+	if str == nil or str == "" then
+		return false
+	end
+	local raw = tostring(str)
+	return tonumber(raw) ~= nil or string.find(raw, "^rbxasset") ~= nil
+end
+
 local function makeIcon(parent, str, size, color, fallback, props)
 	local asset = resolveIcon(str)
 	local inst
@@ -2228,7 +2238,8 @@ function Elements:CreateParagraph(cfg)
 			local bl = listLayout(Btn, 6, true)
 			bl.HorizontalAlignment = Enum.HorizontalAlignment.Center
 			if b.Icon then
-				makeIcon(Btn, b.Icon, 15, tint or Theme.Accent, nil, { LayoutOrder = 1 })
+				local btnTint = b.IconColor or (isCustomImage(b.Icon) and Color3.new(1, 1, 1)) or tint or Theme.Accent
+				makeIcon(Btn, b.Icon, 15, btnTint, nil, { LayoutOrder = 1 })
 			end
 			create("TextLabel", {
 				Size = UDim2.new(0, 0, 1, 0),
@@ -2849,7 +2860,9 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 		local letter = string.upper(string.sub(title ~= "" and title or "?", 1, 1))
 		local ic
 		if def.Icon then
-			ic = makeIcon(btn, def.Icon, 24, def.IconColor or fg, letter, {
+			-- gambar custom (assetid) jangan di-tint gelap, biar warna aslinya tampil
+			local dockTint = def.IconColor or (isCustomImage(def.Icon) and Color3.new(1, 1, 1)) or fg
+			ic = makeIcon(btn, def.Icon, 24, dockTint, letter, {
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				Position = UDim2.fromScale(0.5, 0.5),
 				Size = bare and UDim2.fromScale(1, 1) or UDim2.fromScale(0.56, 0.56),
@@ -3408,7 +3421,9 @@ function Library:CreateWindow(cfg)
 		padding(Pill, 8, 0, 9, 0)
 		listLayout(Pill, 5, true)
 		if t.Icon then
-			makeIcon(Pill, t.Icon, 12, fg, nil, { LayoutOrder = 1 })
+			-- gambar custom: warna asli (putih = tanpa tint); ikon library: ikut kontras
+			local tagTint = t.IconColor or (isCustomImage(t.Icon) and Color3.new(1, 1, 1)) or fg
+			makeIcon(Pill, t.Icon, 12, tagTint, nil, { LayoutOrder = 1 })
 		end
 		local Label = create("TextLabel", {
 			Size = UDim2.new(0, 0, 1, 0),
@@ -3841,7 +3856,14 @@ function Library:CreateWindow(cfg)
 		pl.HorizontalAlignment = Enum.HorizontalAlignment.Center
 		local obIcon = ob.Icon or cfg.Icon
 		if obIcon then
-			makeIcon(OpenBtn, obIcon, 18, fg, nil, { LayoutOrder = 1 })
+			local custom = isCustomImage(obIcon)
+			-- gambar custom: putih = warna asli tidak berubah
+			-- ikon library: ikut kontras tombol
+			local tint = ob.IconColor or (custom and Color3.new(1, 1, 1)) or fg
+			local obImg = makeIcon(OpenBtn, obIcon, ob.IconSize or 18, tint, nil, { LayoutOrder = 1 })
+			if obImg and custom then
+				corner(obImg, 6) -- opsional: sudut logo membulat
+			end
 		end
 		create("TextLabel", {
 			Size = UDim2.new(0, 0, 1, 0),
