@@ -1,3 +1,4 @@
+
 ----------------------------------------------------------------------
 -- 1. LOAD LIBRARY
 ----------------------------------------------------------------------
@@ -222,6 +223,43 @@ local lockedBtn = Btns:CreateButton({
 	Callback = function()
 		Library:Notify({ Title = "Button", Content = "Berhasil ditekan.", Type = "Success" })
 	end,
+})
+
+-- Button yang terkunci sejak awal (Locked = true)
+local startLocked = Btns:CreateButton({
+	Name = "Button terkunci dari awal",
+	Description = "Tidak bisa ditekan sampai dibuka.",
+	Icon = "lucide:lock",
+	Locked = true,
+	LockedTitle = "Fitur ini terkunci", -- judul saat terkunci
+	Callback = function()
+		Library:Notify({ Title = "Terbuka", Content = "Button berhasil ditekan.", Type = "Success" })
+	end,
+})
+
+Btns:CreateButton({
+	Name = "Buka / kunci button di atas",
+	Icon = "lucide:key-round",
+	Callback = function()
+		startLocked.Locked = not startLocked.Locked
+		startLocked:SetLocked(startLocked.Locked)
+	end,
+})
+startLocked.Locked = true
+
+-- Elemen lain juga mendukung Locked
+Btns:CreateToggle({
+	Name = "Toggle terkunci",
+	Locked = true,
+	Callback = function(on) print("Tidak akan terpanggil saat terkunci:", on) end,
+})
+
+Btns:CreateSlider({
+	Name = "Slider terkunci",
+	Locked = true,
+	Min = 0,
+	Max = 100,
+	Default = 30,
 })
 
 -- Toggle
