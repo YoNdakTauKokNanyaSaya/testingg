@@ -4562,9 +4562,16 @@ function Library:CreateWindow(cfg)
 		obEnabled = false
 	end
 	if obEnabled then
-		local colSeq = typeof(ob.Color) == "ColorSequence" and ob.Color or ColorSequence.new(Theme.Accent, Theme.Accent2)
+		-- default: glass ala iOS (sama dengan window). Warna solid hanya kalau Style = "Solid"
+		local solid = ob.Style == "Solid"
+		local colSeq
+		if solid then
+			colSeq = typeof(ob.Color) == "ColorSequence" and ob.Color or ColorSequence.new(Theme.Accent, Theme.Accent2)
+		else
+			colSeq = ColorSequence.new(Theme.GlassTop, Theme.GlassBottom)
+		end
 		local first = (colSeq.Keypoints and colSeq.Keypoints[1] and colSeq.Keypoints[1].Value) or Theme.Accent
-		local fg = luma(first) > 0.62 and Color3.fromRGB(20, 22, 32) or Color3.new(1, 1, 1)
+		local fg = (solid and luma(first) > 0.62) and Color3.fromRGB(20, 22, 32) or Color3.new(1, 1, 1)
 
 		local OpenBtn = create("TextButton", {
 			Name = "OpenButton",
@@ -4573,7 +4580,7 @@ function Library:CreateWindow(cfg)
 			Size = UDim2.new(0, 0, 0, 42),
 			AutomaticSize = Enum.AutomaticSize.X,
 			BackgroundColor3 = Color3.new(1, 1, 1),
-			BackgroundTransparency = 0,
+			BackgroundTransparency = solid and 0 or (ob.GlassAlpha or 0.18),
 			Visible = false,
 			ZIndex = 50,
 			Parent = Gui,
@@ -4582,10 +4589,22 @@ function Library:CreateWindow(cfg)
 		create("UIGradient", { Color = colSeq, Parent = OpenBtn })
 		local thickness = ob.StrokeThickness
 		if thickness == nil then
-			thickness = 2
+			thickness = solid and 2 or 1.2
 		end
 		if thickness > 0 then
-			stroke(OpenBtn, Color3.new(1, 1, 1), thickness, 0.55)
+			local rimStroke = stroke(OpenBtn, Color3.new(1, 1, 1), thickness, solid and 0.55 or 0)
+			if not solid then
+				-- kilau tepi ala iOS glass
+				create("UIGradient", {
+					Rotation = 45,
+					Transparency = NumberSequence.new({
+						NumberSequenceKeypoint.new(0, 0.4),
+						NumberSequenceKeypoint.new(0.5, 0.9),
+						NumberSequenceKeypoint.new(1, 0.62),
+					}),
+					Parent = rimStroke,
+				})
+			end
 		end
 		padding(OpenBtn, 18, 0, 20, 0)
 		local pl = listLayout(OpenBtn, 8, true)
