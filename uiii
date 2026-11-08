@@ -3860,9 +3860,11 @@ function Library:CreateWindow(cfg)
 			-- gambar custom: putih = warna asli tidak berubah
 			-- ikon library: ikut kontras tombol
 			local tint = ob.IconColor or (custom and Color3.new(1, 1, 1)) or fg
-			local obImg = makeIcon(OpenBtn, obIcon, ob.IconSize or 18, tint, nil, { LayoutOrder = 1 })
+			-- ukuran default: logo custom hampir memenuhi tinggi tombol (42), ikon library sedikit lebih kecil
+			local iconSize = ob.IconSize or (custom and 30 or 20)
+			local obImg = makeIcon(OpenBtn, obIcon, iconSize, tint, nil, { LayoutOrder = 1 })
 			if obImg and custom then
-				corner(obImg, 6) -- opsional: sudut logo membulat
+				corner(obImg, math.floor(iconSize * 0.25)) -- sudut membulat proporsional
 			end
 		end
 		create("TextLabel", {
