@@ -1,0 +1,773 @@
+----------------------------------------------------------------------
+-- 1. LOAD LIBRARY
+----------------------------------------------------------------------
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/susantoonggi7-arch/testingg/refs/heads/main/uiiii"))()
+
+local LOGO = "123456789" -- ganti dengan assetid logo kamu (gambar custom tampil warna asli)
+
+----------------------------------------------------------------------
+-- 2. KEY SYSTEM
+----------------------------------------------------------------------
+local FREE_KEYS = { "FREE-KEY-123" }
+local PREMIUM_KEYS = { "VIP-KEY-999" }
+
+local ok, key, tier = Library:KeySystem({
+	Title = "Opah Hub",
+	Subtitle = "Masukkan key untuk melanjutkan.",
+	Icon = LOGO,                       -- assetid atau icon library ("lucide:key-round")
+	Keys = FREE_KEYS,                  -- key biasa
+	PremiumKeys = PREMIUM_KEYS,        -- key premium (otomatis mengaktifkan premium)
+	GetKeyLink = "https://discord.gg/your-invite", -- tombol Get Key menyalin link ini
+	Note = "Key gratis ada di Discord. Key VIP membuka fitur premium.",
+	Placeholder = "Paste key di sini...",
+	SaveKey = true,                    -- key valid disimpan, lain kali UI dilewati
+	FileName = "key",                  -- nama file key tersimpan
+	MaxAttempts = 5,                   -- batas percobaan salah
+	-- KickOnFail = true,              -- kick player kalau percobaan habis
+	-- KickMessage = "Key salah terlalu banyak.",
+	AllowClose = true,                 -- tombol X (return false kalau ditutup)
+	Dim = false,                       -- true = layar belakang digelapkan
+	-- DimTransparency = 0.6,
+	-- Wait = false,                   -- true (default) = menunggu sampai selesai
+	-- Validate ke server sendiri (boleh HTTP). Return true/"free"/"premium"/false:
+	-- Validate = function(k)
+	-- 	local res = game:HttpGet("https://api-kamu.com/check?key=" .. k)
+	-- 	if res == "premium" then return "premium" end
+	-- 	return res == "ok"
+	-- end,
+	OnSuccess = function(k, t) print("Key valid, tier:", t) end,
+	OnWrong = function(k, attempts) print("Key salah, percobaan ke-" .. attempts) end,
+	OnGetKey = function(link) print("Get key:", link) end,
+	OnMaxAttempts = function(n) print("Percobaan habis:", n) end,
+	OnClose = function() print("Key system ditutup") end,
+})
+if not ok then
+	return
+end
+
+----------------------------------------------------------------------
+-- 3. PREMIUM (setup)
+----------------------------------------------------------------------
+-- Pulihkan premium yang pernah diaktifkan lewat kolom key di dalam UI
+Library:RestorePremium({ PremiumKeys = PREMIUM_KEYS })
+
+-- Aksi saat user non-premium menekan fitur premium
+Library:SetPremiumPrompt(function(featureName)
+	Library:Notify({
+		Title = "Fitur Premium",
+		Content = (featureName or "Fitur ini") .. " khusus VIP. Beli key di Discord.",
+		Type = "Warning",
+	})
+end)
+
+Library:OnPremiumChanged(function(active)
+	print("Premium aktif:", active)
+end)
+
+----------------------------------------------------------------------
+-- 4. WINDOW (semua opsi)
+----------------------------------------------------------------------
+local Window = Library:CreateWindow({
+	Title = "Opah Hub",
+	SubTitle = "v1.0",                 -- default: "v" .. Library.Version
+	Icon = LOGO,                       -- logo topbar, dock, dan open button
+	Folder = "OpahHub",                -- folder config & key tersimpan
+	Width = 640,
+	Height = 420,
+	Footer = "Opah Hub - made with NebulaUI",
+	ToggleKey = Enum.KeyCode.RightShift,
+
+	-- Tema
+	Accent = Color3.fromRGB(10, 132, 255),
+	Accent2 = Color3.fromRGB(100, 210, 255),
+	Font = "Mono",                     -- "Mono" atau "Sans"
+	GlassAlpha = 0.28,                 -- 0 = pekat, 1 = transparan
+	Blur = true,                       -- blur di belakang window
+	BlurSize = 16,
+	-- Background = "rbxassetid://0000000", -- gambar latar (assetid atau icon library)
+	-- BackgroundImageTransparency = 0.5,
+
+	-- Sidebar
+	HideSearchBar = false,             -- true = sembunyikan kolom Search
+	User = {
+		Enabled = true,                -- kartu profil di sidebar
+		Anonymous = false,             -- true = sembunyikan nama asli
+		Callback = function()
+			Library:Notify({ Title = "Profil", Content = "Kamu menekan kartu profil.", Type = "Info" })
+		end,
+	},
+
+	-- Topbar
+	Topbar = {
+		Height = 46,
+		ButtonsType = "Mac",           -- "Mac" (3 titik) atau kosong (ikon - dan x)
+		-- MinimizeMode = "Collapse",  -- Collapse = hanya melipat; default = sembunyikan ke dock/open button
+		-- HideOnClose = true,         -- X hanya menyembunyikan, bukan menghapus
+	},
+
+	-- Tombol Open (muncul saat window disembunyikan)
+	OpenButton = {
+		Enabled = true,
+		-- OnlyMobile = true,
+		Title = "Opah Auto Win",
+		-- Icon = LOGO,                -- default: Icon window
+		-- IconSize = 30,              -- default pas dengan tinggi tombol
+		-- IconColor = Color3.new(1, 1, 1),
+		Color = ColorSequence.new(Color3.fromRGB(60, 220, 90), Color3.fromRGB(20, 170, 50)),
+		CornerRadius = UDim.new(1, 0),
+		StrokeThickness = 2,
+		Scale = 1,
+		Draggable = true,
+	},
+
+	-- Dock bergaya macOS
+	Dock = {
+		Enabled = true,
+		IconSize = 46,
+		Magnify = 1.5,                 -- efek membesar saat di-hover (PC)
+		Offset = 12,
+		Colorful = true,
+		App = true,                    -- item logo app di kiri
+		Tabs = true,                   -- tiap tab otomatis jadi item dock
+		Items = {
+			{
+				Title = "Discord",
+				Icon = "lucide:message-circle",
+				Color = Color3.fromRGB(88, 101, 242),
+				Callback = function()
+					Library:Notify({ Title = "Discord", Content = "discord.gg/your-invite", Type = "Info" })
+				end,
+			},
+		},
+	},
+
+	-- Tag di topbar
+	Tags = {
+		{ Title = "Beta", Icon = "lucide:flask-conical", Color = Color3.fromRGB(255, 159, 10) },
+	},
+})
+
+-- Tag tambahan setelah window dibuat
+local statusTag = Window:Tag({
+	Title = Library:IsPremium() and "PREMIUM" or "FREE",
+	Icon = "lucide:crown",
+	Border = true,
+})
+Library:OnPremiumChanged(function(active)
+	statusTag:SetTitle(active and "PREMIUM" or "FREE")
+end)
+
+-- Item dock tambahan dari luar
+Window.Dock:AddDivider()
+local dockItem = Window.Dock:AddItem({
+	Title = "Reload",
+	Icon = "lucide:refresh-cw",
+	Color = Color3.fromRGB(255, 159, 10),
+	Callback = function(api)
+		Library:Notify({ Title = "Dock", Content = "Item dock ditekan.", Type = "Success" })
+	end,
+})
+
+Library:Notify({
+	Title = "Selamat datang",
+	Content = "Tekan RightShift untuk membuka atau menutup menu.",
+	Type = "Success",
+	Duration = 5,
+})
+
+----------------------------------------------------------------------
+-- 5. TAB: ELEMEN DASAR
+----------------------------------------------------------------------
+local Basic = Window:CreateTab("Elemen", "lucide:layout-grid")
+
+-- Section: Name, Icon, Collapsible (default true), Open (default true)
+local Btns = Basic:CreateSection({ Name = "Button", Icon = "lucide:mouse-pointer-click" })
+
+Btns:CreateButton({
+	Name = "Button biasa",
+	Description = "Dengan deskripsi dan panah di kanan.",
+	Callback = function()
+		Library:Notify({ Title = "Button", Content = "Button biasa ditekan.", Type = "Info" })
+	end,
+})
+
+Btns:CreateButton({
+	Name = "Button dengan ikon",
+	Icon = "lucide:rocket",
+	Callback = function()
+		Library:Notify({ Title = "Button", Content = "Ikon di kiri.", Type = "Info" })
+	end,
+})
+
+Btns:CreateButton({
+	Name = "Ikon di kanan",
+	Icon = "lucide:arrow-right",
+	IconAlign = "Right",
+	Callback = function() end,
+})
+
+Btns:CreateButton({
+	Name = "Rata tengah + warna",
+	Justify = "Center",
+	Color = Color3.fromRGB(255, 69, 58),  -- warna kartu
+	Callback = function()
+		Library:Notify({ Title = "Danger", Content = "Button merah.", Type = "Error" })
+	end,
+})
+
+local lockedBtn = Btns:CreateButton({
+	Name = "Button yang bisa dikunci",
+	Icon = "lucide:lock",
+	LockedTitle = "Terkunci", -- judul saat terkunci
+	Callback = function()
+		Library:Notify({ Title = "Button", Content = "Berhasil ditekan.", Type = "Success" })
+	end,
+})
+
+-- Toggle
+local Togs = Basic:CreateSection({ Name = "Toggle & Checkbox", Icon = "lucide:toggle-right" })
+
+Togs:CreateToggle({
+	Name = "Toggle biasa",
+	Description = "Switch gaya iOS.",
+	Flag = "DemoToggle",
+	Default = false,
+	Icon = "lucide:zap",
+	Callback = function(on)
+		print("Toggle:", on)
+	end,
+})
+
+Togs:CreateToggle({
+	Name = "Checkbox",
+	Type = "Checkbox",
+	Flag = "DemoCheckbox",
+	Default = true,
+	Callback = function(on)
+		print("Checkbox:", on)
+	end,
+})
+
+-- Toggle yang mengunci button di atas (obj:SetLocked)
+Togs:CreateToggle({
+	Name = "Kunci 'Button yang bisa dikunci'",
+	Flag = "LockDemo",
+	Callback = function(on)
+		lockedBtn:SetLocked(on)
+	end,
+})
+
+-- Slider
+local Sli = Basic:CreateSection({ Name = "Slider", Icon = "lucide:sliders-horizontal" })
+
+Sli:CreateSlider({
+	Name = "Slider biasa",
+	Flag = "DemoSlider",
+	Min = 0,
+	Max = 100,
+	Default = 50,
+	Step = 1,
+	Suffix = "%",
+	Callback = function(v) print("Slider:", v) end,
+})
+
+Sli:CreateSlider({
+	Name = "Slider desimal",
+	Flag = "DemoSliderDec",
+	Value = { Min = 0, Max = 5, Default = 1.5 }, -- bentuk alternatif
+	Step = 0.1,
+	Suffix = "s",
+})
+
+-- Dropdown
+local Drop = Basic:CreateSection({ Name = "Dropdown", Icon = "lucide:chevrons-up-down" })
+
+Drop:CreateDropdown({
+	Name = "Single select",
+	Flag = "DemoDropdown",
+	Values = { "Nearest", "Strongest", "Weakest" },
+	Value = "Nearest",
+	Callback = function(v) print("Dropdown:", v) end,
+})
+
+Drop:CreateDropdown({
+	Name = "Multi select",
+	Flag = "DemoMulti",
+	Multi = true,
+	Values = { "Coins", "Gems", "Chests", "Keys" },
+	Value = { "Coins" },
+	Callback = function(list) print("Multi:", table.concat(list, ", ")) end,
+})
+
+Drop:CreateDropdown({
+	Name = "Dengan ikon, deskripsi, divider",
+	Flag = "DemoRich",
+	Values = {
+		{ Title = "Teleport", Desc = "Pindah ke lokasi", Icon = "lucide:map-pin" },
+		{ Title = "Heal", Desc = "Isi darah penuh", Icon = "lucide:heart" },
+		{ Type = "Divider" },
+		{ Title = "Reset", Icon = "lucide:rotate-ccw" },
+	},
+	Value = "Teleport",
+})
+
+-- Action menu: semua item punya Callback dan tidak ada Value
+Drop:CreateDropdown({
+	Name = "Action menu",
+	Icon = "lucide:menu",
+	Values = {
+		{ Title = "Salin ID", Icon = "lucide:copy", Callback = function()
+			Library:Notify({ Title = "Menu", Content = "Salin ID dipilih.", Type = "Info" })
+		end },
+		{ Title = "Refresh", Icon = "lucide:refresh-cw", Callback = function()
+			Library:Notify({ Title = "Menu", Content = "Refresh dipilih.", Type = "Info" })
+		end },
+	},
+})
+
+-- Dropdown dinamis (Refresh)
+local dyn = Drop:CreateDropdown({
+	Name = "Dropdown dinamis",
+	Values = { "A", "B" },
+})
+Drop:CreateButton({
+	Name = "Isi ulang dropdown dinamis",
+	Icon = "lucide:list-restart",
+	Callback = function()
+		dyn:Refresh({ "Pemain 1", "Pemain 2", "Pemain 3" })
+	end,
+})
+
+-- Input
+local Inp = Basic:CreateSection({ Name = "Input", Icon = "lucide:text-cursor-input" })
+
+Inp:CreateTextBox({
+	Name = "TextBox",
+	Placeholder = "Ketik di sini...",
+	Icon = "lucide:pencil",
+	Flag = "DemoText",
+	Callback = function(t) print("Text:", t) end,
+})
+
+Inp:CreateTextBox({
+	Name = "Angka saja",
+	Numeric = true,
+	Default = 10,
+	Flag = "DemoNumber",
+	Callback = function(t) print("Angka:", t) end,
+})
+
+Inp:CreateTextBox({
+	Name = "Textarea",
+	Type = "Textarea",
+	Placeholder = "Catatan panjang...",
+	Flag = "DemoArea",
+})
+
+Inp:CreateKeybind({
+	Name = "Keybind",
+	Flag = "DemoKey",
+	Default = Enum.KeyCode.F,
+	Callback = function(keyName) print("Ditekan:", keyName) end, -- saat tombol ditekan
+	Changed = function(newKey) print("Diganti ke:", newKey.Name) end, -- saat diganti
+})
+
+Inp:CreateColorPicker({
+	Name = "Color picker",
+	Flag = "DemoColor",
+	Default = Color3.fromRGB(255, 80, 80),
+	Callback = function(color) print("Warna:", color) end,
+})
+
+Inp:CreateColorPicker({
+	Name = "Color picker + alpha",
+	Flag = "DemoColorAlpha",
+	Default = Color3.fromRGB(80, 160, 255),
+	Transparency = 0.3, -- mengaktifkan slider alpha
+	Callback = function(color, alpha) print("Warna:", color, "alpha:", alpha) end,
+})
+
+----------------------------------------------------------------------
+-- 6. TAB: TAMPILAN (Label, Paragraph, ProgressBar, Code, SubTab)
+----------------------------------------------------------------------
+local Disp = Window:CreateTab("Tampilan", "lucide:monitor")
+
+local Show = Disp:CreateSection({ Name = "Konten", Icon = "lucide:file-text" })
+
+local label = Show:CreateLabel("Ini label biasa. Bisa diubah lewat label:Set().")
+Show:CreateButton({
+	Name = "Ubah label",
+	Callback = function()
+		label:Set("Label diubah pada " .. os.date("%H:%M:%S"))
+	end,
+})
+
+Show:CreateParagraph({
+	Title = "Paragraph",
+	Desc = "Paragraph dengan warna, gambar kecil, dan tombol.",
+	Color = "Blue", -- Red, Orange, Yellow, Green, Teal, Blue, Purple, Pink, Grey, White
+	Image = LOGO,
+	ImageSize = 30,
+	Buttons = {
+		{ Title = "Salin", Icon = "lucide:copy", Callback = function()
+			if setclipboard then setclipboard("https://discord.gg/your-invite") end
+		end },
+		{ Title = "Info", Icon = "lucide:info", Callback = function()
+			Library:Notify({ Title = "Info", Content = "Tombol paragraph.", Type = "Info" })
+		end },
+	},
+})
+
+local para = Show:CreateParagraph({
+	Title = "Paragraph dengan thumbnail",
+	Desc = "Thumbnail lebar di atas judul.",
+	Color = "Purple",
+	Thumbnail = LOGO,
+	ThumbnailSize = 90,
+})
+Show:CreateButton({
+	Name = "Ubah teks paragraph",
+	Callback = function()
+		para:SetTitle("Judul baru")
+		para:SetDesc("Deskripsi diubah lewat SetDesc.")
+	end,
+})
+
+-- ProgressBar
+local Prog = Disp:CreateSection({ Name = "Progress Bar", Icon = "lucide:loader" })
+
+local bar = Prog:CreateProgressBar({
+	Name = "Progress biasa",
+	Description = "Nilai 0 sampai 100.",
+	Default = 0,
+})
+Prog:CreateButton({
+	Name = "Jalankan progress",
+	Icon = "lucide:play",
+	Callback = function()
+		task.spawn(function()
+			for i = 0, 100, 5 do
+				bar:Set(i)
+				task.wait(0.05)
+			end
+		end)
+	end,
+})
+
+local loading = Prog:CreateProgressBar({
+	Name = "Indeterminate",
+	Indeterminate = true,
+	IndeterminateText = "Loading...",
+	Speed = 1,
+})
+Prog:CreateButton({
+	Name = "Selesaikan loading",
+	Callback = function()
+		loading:SetIndeterminate(false)
+		loading:Set(100)
+		loading:SetTitle("Selesai")
+	end,
+})
+
+-- Code
+local Cd = Disp:CreateSection({ Name = "Code", Icon = "lucide:code" })
+
+local codeBox = Cd:CreateCode({
+	Name = "Contoh kode Lua",
+	Code = 'local Players = game:GetService("Players")\nprint("Hello", Players.LocalPlayer.Name)\n-- komentar',
+	CanCopied = true,
+	CodeSize = 14,
+	OnCopy = function()
+		Library:Notify({ Title = "Code", Content = "Kode disalin.", Type = "Success" })
+	end,
+})
+Cd:CreateButton({
+	Name = "Ganti kode",
+	Callback = function()
+		codeBox:SetCode('for i = 1, 3 do\n\tprint(i)\nend')
+	end,
+})
+
+-- SubTab: pill di atas halaman, tiap pill punya konten sendiri
+local Sub = Window:CreateTab("SubTab", "lucide:layers")
+
+local subA = Sub:CreateSubTab("Umum", "lucide:home")
+subA:CreateSection({ Name = "Pengaturan umum" }):CreateToggle({
+	Name = "Opsi A",
+	Flag = "SubOptA",
+})
+
+local subB = Sub:CreateSubTab("Lanjutan", "lucide:settings-2")
+local subBSec = subB:CreateSection({ Name = "Pengaturan lanjutan" })
+subBSec:CreateSlider({ Name = "Opsi B", Flag = "SubOptB", Min = 0, Max = 10, Default = 3 })
+
+----------------------------------------------------------------------
+-- 7. TAB: PREMIUM
+----------------------------------------------------------------------
+local Prem = Window:CreateTab("Premium", "lucide:crown")
+
+local VIP = Prem:CreateSection({ Name = "Fitur VIP", Icon = "lucide:gem" })
+
+-- Premium = true di elemen apa pun: terkunci sampai premium aktif
+VIP:CreateToggle({
+	Name = "Auto Win",
+	Description = "Menang otomatis.",
+	Flag = "AutoWin",
+	Premium = true,
+	Callback = function(on) print("Auto Win:", on) end,
+})
+
+VIP:CreateSlider({
+	Name = "Speed Boost",
+	Flag = "SpeedBoost",
+	Premium = true,
+	Min = 16,
+	Max = 120,
+	Default = 16,
+	Callback = function(v)
+		local char = game.Players.LocalPlayer.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if hum then hum.WalkSpeed = v end
+	end,
+})
+
+VIP:CreateKeybind({
+	Name = "Teleport Key",
+	Flag = "TpKey",
+	Premium = true,
+	Default = Enum.KeyCode.T,
+	Callback = function() print("Teleport!") end,
+})
+
+-- Gating dari sisi script
+VIP:CreateButton({
+	Name = "Aksi Spesial (PremiumOnly)",
+	Icon = "lucide:zap",
+	Callback = Library:PremiumOnly(function()
+		Library:Notify({ Title = "VIP", Content = "Aksi spesial dijalankan.", Type = "Success" })
+	end, "Aksi Spesial"),
+})
+
+VIP:CreateButton({
+	Name = "Cek manual (CheckPremium)",
+	Callback = function()
+		if not Library:CheckPremium("Cek manual") then
+			return
+		end
+		Library:Notify({ Title = "VIP", Content = "Lolos pengecekan.", Type = "Success" })
+	end,
+})
+
+local Act = Prem:CreateSection({ Name = "Aktivasi", Icon = "lucide:key-round" })
+
+Act:CreateTextBox({
+	Name = "Masukkan key VIP",
+	Placeholder = "VIP-...",
+	Callback = function(text)
+		if text == "" then return end
+		if not Library:ActivatePremium(text, { PremiumKeys = PREMIUM_KEYS }) then
+			Library:Notify({ Title = "Key salah", Content = "Key VIP tidak valid.", Type = "Error" })
+		end
+	end,
+})
+
+Act:CreateButton({
+	Name = "Cek status premium",
+	Icon = "lucide:badge-check",
+	Callback = function()
+		Library:Notify({
+			Title = "Status",
+			Content = Library:IsPremium() and "Premium aktif." or "Akun gratis.",
+			Type = Library:IsPremium() and "Success" or "Info",
+		})
+	end,
+})
+
+Act:CreateButton({
+	Name = "Hapus key tersimpan",
+	Icon = "lucide:trash-2",
+	Callback = function()
+		Library:ClearSavedKey("key")
+		Library:ClearSavedKey("premium")
+		Library:Notify({ Title = "Key", Content = "Key tersimpan dihapus.", Type = "Info" })
+	end,
+})
+
+----------------------------------------------------------------------
+-- 8. TAB: NOTIFIKASI
+----------------------------------------------------------------------
+local Nt = Window:CreateTab("Notifikasi", "lucide:bell")
+local NtSec = Nt:CreateSection({ Name = "Jenis notifikasi", Icon = "lucide:bell-ring" })
+
+for _, t in ipairs({ "Info", "Success", "Warning", "Error" }) do
+	NtSec:CreateButton({
+		Name = "Notifikasi " .. t,
+		Callback = function()
+			Library:Notify({
+				Title = t,
+				Content = "Contoh notifikasi bertipe " .. t .. ". Klik untuk menutup.",
+				Type = t,          -- Info | Success | Warning | Error
+				Duration = 4,      -- detik
+				-- Time = "now",   -- teks waktu di kanan atas
+			})
+		end,
+	})
+end
+
+----------------------------------------------------------------------
+-- 9. TAB: TEMA & WINDOW
+----------------------------------------------------------------------
+local Theme = Window:CreateTab("Tema", "lucide:palette")
+
+local Colors = Theme:CreateSection({ Name = "Warna", Icon = "lucide:paintbrush" })
+
+Colors:CreateColorPicker({
+	Name = "Warna accent",
+	Flag = "AccentColor",
+	Default = Color3.fromRGB(10, 132, 255),
+	ApplyToTheme = true, -- langsung mengubah warna seluruh tema
+})
+
+local presets = {
+	{ "Biru", Color3.fromRGB(10, 132, 255) },
+	{ "Hijau", Color3.fromRGB(48, 209, 88) },
+	{ "Ungu", Color3.fromRGB(191, 90, 242) },
+	{ "Pink", Color3.fromRGB(255, 55, 95) },
+	{ "Oranye", Color3.fromRGB(255, 159, 10) },
+}
+for _, p in ipairs(presets) do
+	Colors:CreateButton({
+		Name = "Preset " .. p[1],
+		Callback = function()
+			Library:SetAccent(p[2]) -- argumen kedua (accent2) opsional, dihitung otomatis
+		end,
+	})
+end
+
+local Glass = Theme:CreateSection({ Name = "Window", Icon = "lucide:app-window" })
+
+Glass:CreateSlider({
+	Name = "Transparansi glass",
+	Min = 0,
+	Max = 100,
+	Default = 28,
+	Suffix = "%",
+	Callback = function(v) Window:SetGlassAlpha(v / 100) end,
+})
+
+Glass:CreateToggle({
+	Name = "Mode anonim",
+	Description = "Sembunyikan nama di kartu profil.",
+	Callback = function(on) Window:SetAnonymous(on) end,
+})
+
+Glass:CreateButton({
+	Name = "Lipat / buka window",
+	Icon = "lucide:chevrons-up-down",
+	Callback = function() Window:Collapse() end,
+})
+
+Glass:CreateButton({
+	Name = "Maximize / restore",
+	Icon = "lucide:maximize-2",
+	Callback = function() Window:ToggleMaximize() end,
+})
+
+Glass:CreateButton({
+	Name = "Sembunyikan (5 detik lalu muncul)",
+	Icon = "lucide:eye-off",
+	Callback = function()
+		Window:SetVisible(false)
+		task.delay(5, function() Window:SetVisible(true) end)
+	end,
+})
+
+Glass:CreateButton({
+	Name = "Pindah ke tab Elemen",
+	Icon = "lucide:arrow-left-right",
+	Callback = function() Window:SelectTab(Basic) end,
+})
+
+local dockHidden = false
+Glass:CreateButton({
+	Name = "Sembunyikan / tampilkan dock",
+	Icon = "lucide:panel-bottom",
+	Callback = function()
+		dockHidden = not dockHidden
+		Window.Dock:SetVisible(not dockHidden)
+	end,
+})
+
+----------------------------------------------------------------------
+-- 10. TAB: CONFIG
+----------------------------------------------------------------------
+local Conf = Window:CreateTab("Config", "lucide:save")
+local CfgSec = Conf:CreateSection({ Name = "Simpan & muat", Icon = "lucide:hard-drive" })
+
+local cfgName = "default"
+
+local cfgList = CfgSec:CreateDropdown({
+	Name = "Config tersimpan",
+	Values = Library:ListConfigs(),
+	Callback = function(v) cfgName = v end,
+})
+
+CfgSec:CreateTextBox({
+	Name = "Nama config",
+	Default = cfgName,
+	Callback = function(t) cfgName = (t ~= "" and t) or "default" end,
+})
+
+CfgSec:CreateButton({
+	Name = "Simpan",
+	Icon = "lucide:save",
+	Callback = function()
+		local saved = Library:SaveConfig(cfgName)
+		cfgList:Refresh(Library:ListConfigs())
+		Library:Notify({
+			Title = saved and "Config tersimpan" or "Gagal menyimpan",
+			Content = cfgName,
+			Type = saved and "Success" or "Error",
+		})
+	end,
+})
+
+CfgSec:CreateButton({
+	Name = "Muat",
+	Icon = "lucide:folder-open",
+	Callback = function()
+		local loaded = Library:LoadConfig(cfgName)
+		Library:Notify({
+			Title = loaded and "Config dimuat" or "Config tidak ditemukan",
+			Content = cfgName,
+			Type = loaded and "Success" or "Warning",
+		})
+	end,
+})
+
+CfgSec:CreateButton({
+	Name = "Hapus",
+	Icon = "lucide:trash-2",
+	Callback = function()
+		Library:DeleteConfig(cfgName)
+		cfgList:Refresh(Library:ListConfigs())
+		Library:Notify({ Title = "Config dihapus", Content = cfgName, Type = "Info" })
+	end,
+})
+
+-- Cara lain lewat ConfigManager:
+-- local cm = Window.ConfigManager:CreateConfig("main")
+-- cm.Save(); cm.Load(); cm.Delete()
+-- print(#Window.ConfigManager.AllConfigs())
+
+-- Baca nilai kapan saja lewat Library.Flags / Library.Items:
+-- print(Library.Flags.DemoToggle)
+-- Library.Items.DemoToggle:Set(true)
+
+local Danger = Conf:CreateSection({ Name = "Zona bahaya", Icon = "lucide:triangle-alert", Open = false })
+Danger:CreateButton({
+	Name = "Unload UI",
+	Icon = "lucide:power",
+	Color = Color3.fromRGB(255, 69, 58),
+	Callback = function() Window:Destroy() end,
+})
