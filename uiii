@@ -56,9 +56,7 @@ local WEIGHT = {
 	Heavy = Enum.FontWeight.Heavy,
 }
 
-----------------------------------------------------------------------
--- ANIMATION PRESETS
-----------------------------------------------------------------------
+
 local EASE = {
 	Instant = TweenInfo.new(0),
 	Fast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -3294,22 +3292,31 @@ function Library:CreateWindow(cfg)
 		Position = UDim2.new(0, leftX, 0.5, 0),
 		Size = UDim2.fromOffset(28, 28),
 		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 1, 
 		Parent = TopBar,
 	})
 	corner(Logo, 9)
 	local logoGrad = create("UIGradient", {
 		Rotation = 45,
 		Color = ColorSequence.new(Theme.Accent, Theme.Accent2),
+		Enabled = false, 
 		Parent = Logo,
 	})
 	bindAccent(function(a, b)
 		logoGrad.Color = ColorSequence.new(a, b)
 	end)
-	local logoIcon = cfg.Icon and makeIcon(Logo, cfg.Icon, 18, Color3.new(1, 1, 1), nil, {
+
+	local logoIcon = cfg.Icon and makeIcon(Logo, cfg.Icon, 28, Color3.new(1, 1, 1), nil, {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
 	})
-	if not logoIcon then
+
+	if logoIcon then
+		corner(logoIcon, 9) 
+	else
+		
+		Logo.BackgroundTransparency = 0
+		logoGrad.Enabled = true
 		create("TextLabel", {
 			Size = UDim2.fromScale(1, 1),
 			Text = string.upper(string.sub(cfg.Title or "N", 1, 1)),
