@@ -3008,8 +3008,10 @@ function Library:KeySystem(cfg)
 		Active = true,
 		Parent = Gui,
 	})
-	if cfg.Dim ~= false then
-		tween(Dim, { BackgroundTransparency = 0.5 }, EASE.Slow)
+	-- dim layar hanya kalau diminta (Dim = true); default tanpa dim.
+	-- Dim tetap Active supaya klik tidak tembus ke game.
+	if cfg.Dim == true then
+		tween(Dim, { BackgroundTransparency = cfg.DimTransparency or 0.6 }, EASE.Slow)
 	end
 
 	local cam = workspace.CurrentCamera
