@@ -56,7 +56,9 @@ local WEIGHT = {
 	Heavy = Enum.FontWeight.Heavy,
 }
 
-
+----------------------------------------------------------------------
+-- ANIMATION PRESETS
+----------------------------------------------------------------------
 local EASE = {
 	Instant = TweenInfo.new(0),
 	Fast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -2791,11 +2793,16 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 
 		local title = tostring(def.Title or def.Name or "")
 		local accentTile = def.Accent == true
-		if def.Color == nil and not accentTile and colorful then
+		-- Bare: ikon gambar custom tampil penuh tanpa tile berwarna
+		local bare = def.Bare == true and def.Icon ~= nil and resolveIcon(def.Icon) ~= ""
+		if bare then
+			accentTile = false
+		end
+		if def.Color == nil and not accentTile and not bare and colorful then
 			colorIdx += 1
 			def.Color = PALETTE[((colorIdx - 1) % #PALETTE) + 1]
 		end
-		local solid = typeof(def.Color) == "Color3"
+		local solid = typeof(def.Color) == "Color3" and not bare
 
 		local slot = create("Frame", {
 			Size = UDim2.fromOffset(base + 6, barH),
@@ -2810,12 +2817,12 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 			Position = UDim2.new(0.5, 0, 1, -10),
 			Size = UDim2.fromOffset(base, base),
 			BackgroundColor3 = (solid or accentTile) and Color3.new(1, 1, 1) or Theme.Surface,
-			BackgroundTransparency = (solid or accentTile) and 0 or 0.3,
+			BackgroundTransparency = bare and 1 or ((solid or accentTile) and 0 or 0.3),
 			Text = "",
 			Parent = slot,
 		})
 		create("UICorner", { CornerRadius = UDim.new(0.27, 0), Parent = btn })
-		stroke(btn, Color3.new(1, 1, 1), 1, 0.75)
+		stroke(btn, Color3.new(1, 1, 1), 1, bare and 1 or 0.75)
 		if solid then
 			create("UIGradient", {
 				Rotation = 90,
@@ -2845,8 +2852,11 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 			ic = makeIcon(btn, def.Icon, 24, def.IconColor or fg, letter, {
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				Position = UDim2.fromScale(0.5, 0.5),
-				Size = UDim2.fromScale(0.56, 0.56),
+				Size = bare and UDim2.fromScale(1, 1) or UDim2.fromScale(0.56, 0.56),
 			})
+			if ic and bare then
+				create("UICorner", { CornerRadius = UDim.new(0.27, 0), Parent = ic })
+			end
 		end
 		if ic and ic:IsA("TextLabel") then
 			ic.TextScaled = true
@@ -3049,6 +3059,7 @@ local function createDock(Window, Gui, dcfg, appIcon, appTitle)
 			Title = appTitle or "Nebula UI",
 			Icon = appIcon or "lucide:sparkles",
 			Accent = true,
+			Bare = appIcon ~= nil, -- logo custom tampil penuh tanpa tile accent
 			Callback = function()
 				Window:Toggle()
 			end,
@@ -3287,34 +3298,36 @@ function Library:CreateWindow(cfg)
 		CloseBtn = topButton("lucide:x", "x", -12, Theme.Danger)
 	end
 
+	-- LOGO: tanpa kotak gradient di belakang kalau ada Icon custom
 	local Logo = create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, leftX, 0.5, 0),
 		Size = UDim2.fromOffset(28, 28),
 		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 1, 
+		BackgroundTransparency = 1, -- default transparan, tanpa background
 		Parent = TopBar,
 	})
 	corner(Logo, 9)
 	local logoGrad = create("UIGradient", {
 		Rotation = 45,
 		Color = ColorSequence.new(Theme.Accent, Theme.Accent2),
-		Enabled = false, 
+		Enabled = false, -- hanya aktif kalau tidak ada ikon
 		Parent = Logo,
 	})
 	bindAccent(function(a, b)
 		logoGrad.Color = ColorSequence.new(a, b)
 	end)
 
+	-- ikon custom memenuhi seluruh area logo, warna aslinya tidak diubah
 	local logoIcon = cfg.Icon and makeIcon(Logo, cfg.Icon, 28, Color3.new(1, 1, 1), nil, {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
 	})
 
 	if logoIcon then
-		corner(logoIcon, 9) 
+		corner(logoIcon, 9) -- opsional: hapus baris ini kalau tidak mau sudut membulat
 	else
-		
+		-- fallback: tidak ada ikon, pakai kotak gradient + huruf pertama judul
 		Logo.BackgroundTransparency = 0
 		logoGrad.Enabled = true
 		create("TextLabel", {
